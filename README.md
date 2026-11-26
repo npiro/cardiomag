@@ -101,6 +101,14 @@ split, which holds measured healthy recordings on the same layout and checks for
 
 Generated datasets (`data/`, tens of MB) are uploaded. The raw downloads are not; generate locally first.
 
+## Troubleshooting
+
+`ModuleNotFoundError: No module named 'cardiomag'` on macOS: when the repo is in an iCloud-synced folder,
+macOS can mark the venv's `.pth` files as hidden, and Python ≥ 3.12 then ignores them. Run
+`chflags nohidden .venv/lib/python*/site-packages/*.pth`, or create the venv outside the synced folder
+(`UV_PROJECT_ENVIRONMENT=~/venvs/cardiomag`). Running from the repo root with `python -m cardiomag...`
+always works.
+
 ## Layout
 
 ```

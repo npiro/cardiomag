@@ -31,6 +31,10 @@ else
   .venv/bin/pip install -e ".[ml,dev]"
 fi
 
+# macOS (iCloud-synced folders) may flag .pth files as hidden; Python >= 3.12 then skips them and the
+# editable install silently disappears. Clear the flag (re-run this script if imports fail later).
+if [[ "$(uname)" == "Darwin" ]]; then chflags nohidden .venv/lib/python*/site-packages/*.pth 2>/dev/null || true; fi
+
 .venv/bin/python - <<'EOF'
 import torch, cardiomag
 dev = "cuda" if torch.cuda.is_available() else ("mps" if torch.backends.mps.is_available() else "cpu")

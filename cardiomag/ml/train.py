@@ -14,6 +14,7 @@ Config (YAML):
       normalize: sample_rms
       noise_fT_rtHz: 20             # sensor noise added on the fly
       augment: {amp_jitter: 0.1, time_shift: 3, channel_dropout: 0.05}
+      split_hearts: {train: [...], val: [...], test: [...]}   # optional: re-split by heart id
     model: {name: cnn1d, kwargs: {width: 64}}      # or {target: "my_pkg.models:MyNet", kwargs: {...}}
     optim: {lr: 1e-3, weight_decay: 1e-4, epochs: 40, batch_size: 64, patience: 8}
     workers: 0
@@ -73,10 +74,12 @@ def _datasets(cfg, task):
     common = dict(target=dc.get("target", "anomaly"), normalize=dc.get("normalize", "sample_rms"),
                   noise_fT_rtHz=dc.get("noise_fT_rtHz", 0.0), seed=cfg.get("seed", 0))
     healthy_only = task == "reconstruct"
-    ds = {"train": MCGDataset(dc["root"], "train", augment=dc.get("augment"), healthy_only=healthy_only, **common)}
+    sh = dc.get("split_hearts") or {}
+    ds = {"train": MCGDataset(dc["root"], "train", augment=dc.get("augment"), healthy_only=healthy_only,
+                              hearts=sh.get("train"), **common)}
     for s in ("val", "test", "real"):
         try:
-            ds[s] = MCGDataset(dc["root"], s, **common)
+            ds[s] = MCGDataset(dc["root"], s, hearts=sh.get(s), **common)
         except FileNotFoundError:
             pass
     return ds
