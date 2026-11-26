@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cardiomag"
+version = "0.1.0"
+description = "Cardiac magnetic field modelling (MCG), simulated healthy/abnormal hearts, sensor arrays and ML anomaly detection"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "scipy>=1.10", "pyyaml>=6", "matplotlib>=3.7"]
+
+[project.optional-dependencies]
+ml = ["torch>=2.2"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+cardiomag-generate = "cardiomag.data.generate:main"
+cardiomag-train = "cardiomag.ml.train:main"
+cardiomag-eval = "cardiomag.ml.train:eval_main"
+cardiomag-viewer = "cardiomag.viz.build_viewer:main"
+
+[tool.setuptools.packages.find]
+include = ["cardiomag*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::RuntimeWarning"]

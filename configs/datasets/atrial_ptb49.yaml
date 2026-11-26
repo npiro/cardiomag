@@ -1,0 +1,13 @@
+# Atrial (P-wave) anomalies on the four biatrial patient models, PTB 49-channel SQUID layout.
+name: atrial_ptb49
+kind: atria
+seed: 1
+array: {preset: ptb49, standoff_mm: 45}
+placements_per_heart: 4
+placement_jitter: {centre_mm: 12, standoff_mm: 8, rotation_deg: 5, heart_rot_deg: 4}
+time: {t0_ms: -10, t1_ms: 160, dt_ms: 2}        # relative to first activation / P onset
+samples_per_heart: {healthy: 240, slow_patch: 80, ia_block: 80, ectopic: 80}
+splits:                                         # split by heart: no anatomy in two splits
+  train: [biatrial:S1, biatrial:S2]
+  val: [biatrial:S3]
+  test: [biatrial:S4]

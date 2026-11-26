@@ -1,0 +1,35 @@
+# Train on a rented GPU with SkyPilot (https://docs.skypilot.co) - one config for RunPod, Lambda,
+# AWS, GCP, Azure, ... (`sky check` shows which clouds your credentials enable).
+#
+#   pip install "skypilot[runpod]"          # or [lambda], [aws], [gcp] ...
+#   sky launch -c cardiomag remote/skypilot.yaml --env CONFIG=configs/train/ventricular_cnn.yaml
+#   sky logs cardiomag                       # follow training
+#   sky rsync-down cardiomag ~/sky_workdir/runs ./runs_remote   # fetch results
+#   sky down cardiomag                       # stop paying
+#
+# Only generated datasets (data/) are uploaded, not the raw 20+ GB downloads; generate locally first,
+# or set GENERATE=1 to generate on the remote machine (then the raw data must be mounted / downloaded).
+name: cardiomag-train
+
+resources:
+  accelerators: {A10G:1, L4:1, RTX4090:1, A100:1}   # any one of these, cheapest available
+  disk_size: 100
+
+workdir: .                     # repo synced to ~/sky_workdir
+
+file_mounts:
+  ~/sky_workdir/data: ./data   # generated datasets
+
+envs:
+  CONFIG: configs/train/ventricular_cnn.yaml
+  OVERRIDES: ""
+  GENERATE: "0"
+  DATASET_CONFIG: configs/datasets/ventricular_ptb49.yaml
+
+setup: |
+  bash environment/setup_env.sh --cuda 12.4
+
+run: |
+  source .venv/bin/activate
+  if [ "$GENERATE" = "1" ]; then cardiomag-generate --config $DATASET_CONFIG --workers 8; fi
+  cardiomag-train --config $CONFIG --set device=cuda $OVERRIDES

@@ -1,0 +1,18 @@
+# Ventricular (QRS) anomalies: Strocchi healthy anatomies with normal / LBBB / RBBB / scar conduction,
+# plus heart-failure anatomies (anomalous by anatomy, simulated with normal or LBBB conduction).
+name: ventricular_ptb49
+kind: ventricles
+seed: 3
+array: {preset: ptb49, standoff_mm: 45}
+placements_per_heart: 3
+placement_jitter: {centre_mm: 12, standoff_mm: 8, rotation_deg: 5, heart_rot_deg: 6}
+time: {t0_ms: -10, t1_ms: 200, dt_ms: 2}        # relative to QRS onset
+samples_per_heart: {normal: 36, lbbb: 12, rbbb: 12, scar: 12}
+hf_conduction: [normal, lbbb]
+hf_samples_per_class: 36
+splits:
+  train: [strocchi_healthy:01, strocchi_healthy:02, strocchi_healthy:03, strocchi_healthy:04, strocchi_healthy:05,
+          strocchi_healthy:06, strocchi_healthy:07, strocchi_healthy:08, strocchi_healthy:09, strocchi_healthy:10,
+          strocchi_healthy:11, strocchi_healthy:12, strocchi_hf:01]
+  val: [strocchi_healthy:13, strocchi_healthy:14, strocchi_healthy:15, strocchi_healthy:16]
+  test: [strocchi_healthy:17, strocchi_healthy:18, strocchi_healthy:19, strocchi_healthy:20, strocchi_hf:02]

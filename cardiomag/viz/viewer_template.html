@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CardioMag Viewer</title>
+<style>
+:root {
+  --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1f23; --muted: #6b6f76; --line: #e3e1dc;
+  --accent: #c2410c; --accent-soft: #fde8dc; --sensor: #1f6feb; --pos: #c2410c; --neg: #2563eb;
+  --grid: #ecebe7; --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121316; --panel: #1b1d21; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2c2f35;
+    --accent: #fb923c; --accent-soft: #3a2416; --sensor: #60a5fa; --pos: #fb923c; --neg: #60a5fa;
+    --grid: #24272c; --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121316; --panel: #1b1d21; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2c2f35;
+  --accent: #fb923c; --accent-soft: #3a2416; --sensor: #60a5fa; --pos: #fb923c; --neg: #60a5fa;
+  --grid: #24272c; --shadow: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
+header .sub { color: var(--muted); font-size: 12px; }
+select, input, button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.timebar { display: flex; align-items: center; gap: 10px; flex: 1 1 360px; min-width: 260px; }
+.timebar input[type=range] { flex: 1; accent-color: var(--accent); }
+.tlabel { font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }
+main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 16px; padding: 16px 20px 28px; max-width: 1600px; margin: 0 auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 12px 14px; min-width: 0; }
+.card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+#view3d { width: 100%; height: 560px; display: block; cursor: grab; touch-action: none; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.toggles label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.ctrl { display: grid; grid-template-columns: 110px 1fr 62px; align-items: center; gap: 6px 10px; }
+.ctrl label { color: var(--muted); font-size: 13px; }
+.ctrl input[type=range] { accent-color: var(--accent); width: 100%; }
+.ctrl .val { font-variant-numeric: tabular-nums; text-align: right; font-size: 13px; }
+.ctrl select { width: 100%; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+canvas.chart { width: 100%; display: block; }
+#mapc { height: 280px; }
+#trc { height: 220px; }
+#dipc { height: 90px; }
+.note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+.legend { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.bar { height: 8px; flex: 0 0 140px; border-radius: 4px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; }
+#loading { position: fixed; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 80%, transparent); font-size: 15px; z-index: 10; }
+.stats { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+@media (max-width: 960px) {
+  main { grid-template-columns: 1fr; padding: 12px 16px; }
+  #view3d { height: 420px; }
+  header { padding: 12px 16px; }
+}
+</style>
+</head>
+<body>
+<div id="loading">Loading data…</div>
+<header>
+  <div>
+    <h1>CardioMag Viewer</h1>
+    <div class="sub">Cardiac currents, magnetic fields and virtual sensor arrays</div>
+  </div>
+  <select id="src" aria-label="Data source" style="min-width:300px"></select>
+  <div class="timebar">
+    <button id="play" aria-label="Play">▶</button>
+    <input id="time" type="range" min="0" max="1" value="0" aria-label="Time">
+    <span class="tlabel" id="tlabel">0 ms</span>
+  </div>
+  <button id="theme" title="Toggle light/dark">◐</button>
+</header>
+
+<main>
+  <div class="col">
+    <div class="card">
+      <h2 id="title3d">Heart</h2>
+      <canvas id="view3d" aria-label="3D view: drag to rotate, scroll to zoom"></canvas>
+      <div class="toggles">
+        <label><input type="checkbox" id="tVm" checked> membrane voltage</label>
+        <label><input type="checkbox" id="tJ" checked> current dipoles</label>
+        <label><input type="checkbox" id="tSkin" checked> chest</label>
+        <label><input type="checkbox" id="tSens" checked> sensors</label>
+        <span style="margin-left:auto">drag to rotate · scroll to zoom ·
+          <button id="vFront">front</button> <button id="vSide">side</button></span>
+      </div>
+      <div class="legend"><span>Vm</span><span class="bar" id="vmbar"></span><span>−90 → +30 mV</span>
+        <span style="margin-left:14px">arrows: largest current dipoles (voxel sums)</span></div>
+    </div>
+    <div class="card">
+      <h2>Current dipole <span class="stats" id="dipstat"></span></h2>
+      <canvas class="chart" id="dipc"></canvas>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card" id="arraycard">
+      <h2>Sensor array</h2>
+      <div class="ctrl">
+        <label for="preset">layout</label>
+        <select id="preset"><option value="grid">grid</option><option value="ptb49">PTB 49-ch SQUID</option><option value="kiel36">Kiel 6×6 OPM</option></select><span></span>
+        <label for="nx">columns</label><input id="nx" type="range" min="2" max="16" value="8"><span class="val" id="nxv"></span>
+        <label for="ny">rows</label><input id="ny" type="range" min="2" max="16" value="8"><span class="val" id="nyv"></span>
+        <label for="sp">spacing</label><input id="sp" type="range" min="5" max="50" value="25"><span class="val" id="spv"></span>
+        <label for="cx">centre ← →</label><input id="cx" type="range" min="-150" max="150" value="0"><span class="val" id="cxv"></span>
+        <label for="cy">centre ↓ ↑</label><input id="cy" type="range" min="-200" max="200" value="0"><span class="val" id="cyv"></span>
+        <label for="so">standoff</label><input id="so" type="range" min="3" max="80" value="10"><span class="val" id="sov"></span>
+        <label for="rot">rotation</label><input id="rot" type="range" min="-45" max="45" value="0"><span class="val" id="rotv"></span>
+        <label for="comp">component</label>
+        <select id="comp"><option value="normal">normal (anterior)</option><option value="left">tangential, left</option><option value="superior">tangential, superior</option></select><span></span>
+        <label for="noise">noise</label><input id="noise" type="range" min="0" max="200" value="0"><span class="val" id="noisev"></span>
+      </div>
+      <div class="row">
+        <button id="reset">reset to preset default</button>
+        <button class="primary" id="export">Export signals (CSV)</button>
+      </div>
+      <p class="note" id="arraynote"></p>
+    </div>
+    <div class="card">
+      <h2>Field map at <span id="maptime"></span> <span class="stats" id="mapstat"></span></h2>
+      <canvas class="chart" id="mapc"></canvas>
+      <div class="legend"><span>−</span><span class="bar" id="divbar"></span><span>+</span><span>click a sensor to highlight its trace</span></div>
+    </div>
+    <div class="card">
+      <h2>Sensor signals <span class="stats" id="trstat"></span></h2>
+      <canvas class="chart" id="trc"></canvas>
+    </div>
+    <div class="card">
+      <details><summary>About the physics</summary>
+        <p class="note">Simulated sources: activation from an anisotropic eikonal model (validated against the reference biatrial simulations, mean error ≈1 ms) with a template action potential; primary current J = −σᵢ∇Vₘ with an effective intracellular conductivity calibrated to the measured PTB P-wave (K<sub>cal</sub> = <span id="kcal"></span>). Current dipoles are lumped into 8–9 mm voxels; B at each sensor is computed here by Biot–Savart. The normal component is exact for a flat (half-space) chest; tangential components omit volume currents. Measured sources are median beats from the PTB SQUID and Kiel OPM recordings on their own layouts (time relative to the R peak).</p>
+      </details>
+    </div>
+  </div>
+</main>
+
+<script>
+const DATA = /*__DATA__*/null;
+const $ = (id) => document.getElementById(id);
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// ---------------------------------------------------------------- decoding
+async function decode(b64, Type) {
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const stream = new Blob([bin]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Type(await new Response(stream).arrayBuffer());
+}
+const cache = new Map();
+async function loadSource(key) {
+  if (cache.has(key)) return cache.get(key);
+  let out;
+  if (key.startsWith("sim:")) {
+    const s = DATA.sources[+key.slice(4)];
+    const [pts, vm, vox, m] = await Promise.all([decode(s.pts, Float32Array), decode(s.vm, Uint8Array),
+      decode(s.vox, Float32Array), decode(s.m, Int16Array)]);
+    const skin = DATA.skins[s.skin];
+    let grid = null;
+    if (skin.type === "map") grid = await decode(skin.grid, Float32Array);
+    out = { kind: "sim", s, pts, vm, vox, m, skin, grid, T: s.t_ms.length };
+  } else {
+    const s = DATA.measured[+key.slice(5)];
+    const beat = await decode(s.beat, Float32Array);
+    const sk = DATA.skins["biatrial_S1"];
+    const grid = sk && sk.type === "map" ? await decode(sk.grid, Float32Array) : null;
+    out = { kind: "meas", s, beat, skin: sk, grid, T: s.t_ms.length };
+  }
+  cache.set(key, out);
+  return out;
+}
+
+// ---------------------------------------------------------------- state
+const st = { src: null, t: 0, playing: false, yaw: 0, pitch: 0, zoom: 1, sel: 0,
+  sensors: [], names: [], B: null, noiseB: null, sensorKey: "" };
+
+function skinZ(src, x, y) {
+  const sk = src.skin;
+  if (!sk) return 100;
+  if (sk.type === "flat") return sk.z;
+  let ix = Math.round((x - sk.x0) / sk.step), iy = Math.round((y - sk.y0) / sk.step);
+  ix = Math.max(0, Math.min(sk.nx - 1, ix)); iy = Math.max(0, Math.min(sk.ny - 1, iy));
+  let best = -1e9;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const jx = ix + dx, jy = iy + dy;
+    if (jx < 0 || jy < 0 || jx >= sk.nx || jy >= sk.ny) continue;
+    const v = src.grid[jy * sk.nx + jx];
+    if (v > -9000 && v > best) best = v;
+  }
+  if (best < -9000) { for (const v of src.grid) if (v > best) best = v; }
+  return best;
+}
+
+function layout(preset, nx, ny, sp) {
+  if (preset === "grid") {
+    const out = [];
+    for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++)
+      out.push([(i - (nx - 1) / 2) * sp, (j - (ny - 1) / 2) * sp]);
+    return out;
+  }
+  return DATA.presets[preset].map(p => p.slice());
+}
+
+function readArray() {
+  return { preset: $("preset").value, nx: +$("nx").value, ny: +$("ny").value, sp: +$("sp").value,
+    cx: +$("cx").value, cy: +$("cy").value, so: +$("so").value, rot: +$("rot").value, comp: $("comp").value,
+    noise: +$("noise").value };
+}
+
+function placeSensors(src) {
+  const a = readArray();
+  let lay;
+  if (src.kind === "meas") lay = src.s.layout; else lay = layout(a.preset, a.nx, a.ny, a.sp);
+  const r = a.rot * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  const xy = lay.map(([u, v]) => [c * u - s * v + a.cx, s * u + c * v + a.cy]);
+  let z = -1e9;
+  for (const [x, y] of xy) z = Math.max(z, skinZ(src, x, y));
+  st.sensors = xy.map(([x, y]) => [x, y, z + a.so]);
+  st.names = src.kind === "meas" ? src.s.names : lay.map((_, i) => (a.preset === "grid" ? "G" : a.preset.toUpperCase() + "_") + String(i).padStart(3, "0"));
+  if (src.kind === "sim" && a.preset !== "grid") st.names = DATA.presets[a.preset].map((_, i) => `${a.preset}_${i}`);
+  if (st.sel >= st.sensors.length) st.sel = 0;
+}
+
+// ---------------------------------------------------------------- field computation
+function computeB(src) {
+  const a = readArray();
+  const S = st.sensors.length, T = src.T;
+  const B = new Float32Array(S * T);
+  if (src.kind === "meas") {
+    for (let i = 0; i < S * T; i++) B[i] = src.beat[i];
+  } else {
+    const V = src.s.n_vox, vox = src.vox, m = src.m, sc = src.s.m_scale / 32767 * 1e-7 * 1e12; // -> pT
+    const n = a.comp === "normal" ? [0, 0, 1] : a.comp === "left" ? [1, 0, 0] : [0, 1, 0];
+    const L = new Float32Array(V * 3);
+    for (let si = 0; si < S; si++) {
+      const [sx, sy, sz] = st.sensors[si];
+      for (let v = 0; v < V; v++) {
+        const rx = (sx - vox[3 * v]) * 1e-3, ry = (sy - vox[3 * v + 1]) * 1e-3, rz = (sz - vox[3 * v + 2]) * 1e-3;
+        const d = Math.hypot(rx, ry, rz), d3 = d * d * d;
+        // (R x n) / |R|^3
+        L[3 * v] = (ry * n[2] - rz * n[1]) / d3;
+        L[3 * v + 1] = (rz * n[0] - rx * n[2]) / d3;
+        L[3 * v + 2] = (rx * n[1] - ry * n[0]) / d3;
+      }
+      for (let t = 0; t < T; t++) {
+        let acc = 0;
+        const off = t * V * 3;
+        for (let k = 0; k < V * 3; k++) acc += m[off + k] * L[k];
+        B[si * T + t] = acc * sc;
+      }
+    }
+  }
+  st.B = B;
+  addNoise(src);
+}
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function addNoise(src) {
+  const a = readArray(), T = src.T;
+  const dt = (src.kind === "sim" ? src.s.t_ms[1] - src.s.t_ms[0] : 2);
+  const sd = a.noise * 1e-3 * Math.sqrt((1000 / dt) / 2);
+  const rnd = mulberry32(12345);
+  st.noiseB = new Float32Array(st.B.length);
+  for (let i = 0; i < st.B.length; i++) {
+    let g = 0;
+    if (sd > 0) { const u = Math.max(rnd(), 1e-12), v = rnd(); g = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) * sd; }
+    st.noiseB[i] = st.B[i] + g;
+  }
+}
+
+// ---------------------------------------------------------------- 3D view
+const cv = $("view3d"), ctx = cv.getContext("2d");
+function fitCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) {
+    c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr);
+  }
+  return dpr;
+}
+function vmColor(q) { // q 0..255 -> cool rest to warm active
+  const t = q / 255;
+  const stops = [[0, [64, 92, 150]], [0.45, [120, 150, 190]], [0.62, [235, 190, 120]], [0.8, [232, 120, 50]], [1, [190, 40, 30]]];
+  for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) {
+    const [t0, c0] = stops[i - 1], [t1, c1] = stops[i], f = (t - t0) / (t1 - t0);
+    return `rgb(${c0.map((c, k) => Math.round(c + f * (c1[k] - c))).join(",")})`;
+  }
+  return "rgb(190,40,30)";
+}
+function divColor(v) { // -1..1
+  const pos = [194, 65, 12], neg = [37, 99, 235], mid = st.dark ? [40, 42, 46] : [246, 245, 242];
+  const c = v >= 0 ? pos : neg, f = Math.min(1, Math.abs(v));
+  return `rgb(${mid.map((m, k) => Math.round(m + f * (c[k] - m))).join(",")})`;
+}
+function project(p, W, H, scale) {
+  const cy = Math.cos(st.yaw), sy = Math.sin(st.yaw), cp = Math.cos(st.pitch), sp = Math.sin(st.pitch);
+  let x = cy * p[0] + sy * p[2], z = -sy * p[0] + cy * p[2], y = p[1];
+  const y2 = cp * y - sp * z, z2 = sp * y + cp * z;
+  return [W / 2 + x * scale, H / 2 - y2 * scale, z2];
+}
+function draw3d() {
+  const src = st.src; if (!src) return;
+  const dpr = fitCanvas(cv), W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  const scale = Math.min(W, H) / 330 * st.zoom;
+  const items = [];
+  if (src.kind === "sim") {
+    const n = src.s.n_pts, f = Math.min(Math.floor(st.t / src.s.disp_every), src.vm.length / n - 1);
+    if ($("tVm").checked) for (let i = 0; i < n; i++) {
+      const p = project([src.pts[3 * i], src.pts[3 * i + 1], src.pts[3 * i + 2]], W, H, scale);
+      items.push([p[2], 0, p, src.vm[f * n + i]]);
+    }
+    if ($("tJ").checked) {
+      const V = src.s.n_vox, off = st.t * V * 3, mags = [];
+      for (let v = 0; v < V; v++) { const a = src.m[off + 3 * v], b = src.m[off + 3 * v + 1], c = src.m[off + 3 * v + 2]; mags.push([Math.hypot(a, b, c), v]); }
+      mags.sort((a, b) => b[0] - a[0]);
+      const top = mags.slice(0, 70), mmax = Math.max(1, top.length ? top[0][0] : 1);
+      for (const [mg, v] of top) {
+        if (mg < mmax * 0.08) break;
+        const c0 = [src.vox[3 * v], src.vox[3 * v + 1], src.vox[3 * v + 2]];
+        const L = 16 * mg / mmax, d = [src.m[off + 3 * v] / mg, src.m[off + 3 * v + 1] / mg, src.m[off + 3 * v + 2] / mg];
+        const p0 = project(c0, W, H, scale), p1 = project([c0[0] + d[0] * L, c0[1] + d[1] * L, c0[2] + d[2] * L], W, H, scale);
+        items.push([Math.max(p0[2], p1[2]) + 5, 1, p0, p1]);
+      }
+    }
+  }
+  if ($("tSkin").checked && src.skin) {
+    const sk = src.skin;
+    if (sk.type === "map") {
+      for (let iy = 0; iy < sk.ny; iy += 3) for (let ix = 0; ix < sk.nx; ix += 3) {
+        const z = src.grid[iy * sk.nx + ix]; if (z < -9000) continue;
+        const p = project([sk.x0 + ix * sk.step, sk.y0 + iy * sk.step, z], W, H, scale);
+        items.push([p[2] - 1000, 2, p]);
+      }
+    } else {
+      const R = 150;
+      for (let y = -R; y <= R; y += 15) for (let x = -R; x <= R; x += 15) {
+        const p = project([x, y, sk.z], W, H, scale); items.push([p[2] - 1000, 2, p]);
+      }
+    }
+  }
+  if ($("tSens").checked) {
+    const vals = st.noiseB, T = src.T;
+    let mx = 1e-9; for (let s = 0; s < st.sensors.length; s++) mx = Math.max(mx, Math.abs(vals[s * T + st.t]));
+    st.sensors.forEach((p, s) => { const q = project(p, W, H, scale); items.push([q[2] + 2000, 3, q, vals[s * T + st.t] / mx, s]); });
+  }
+  items.sort((a, b) => a[0] - b[0]);
+  const skinCol = css("--muted");
+  for (const it of items) {
+    if (it[1] === 0) { ctx.fillStyle = vmColor(it[3]); ctx.fillRect(it[2][0] - 1.3 * dpr, it[2][1] - 1.3 * dpr, 2.6 * dpr, 2.6 * dpr); }
+    else if (it[1] === 1) {
+      const [p0, p1] = [it[2], it[3]];
+      ctx.strokeStyle = st.dark ? "#f5f5f4" : "#111"; ctx.lineWidth = 1.4 * dpr;
+      ctx.beginPath(); ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.stroke();
+      const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]), h = 5 * dpr;
+      ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p1[0] - h * Math.cos(ang - .45), p1[1] - h * Math.sin(ang - .45));
+      ctx.lineTo(p1[0] - h * Math.cos(ang + .45), p1[1] - h * Math.sin(ang + .45)); ctx.closePath(); ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+    } else if (it[1] === 2) { ctx.fillStyle = skinCol; ctx.globalAlpha = .28; ctx.fillRect(it[2][0] - dpr, it[2][1] - dpr, 2 * dpr, 2 * dpr); ctx.globalAlpha = 1; }
+    else {
+      const r = (it[4] === st.sel ? 6 : 4) * dpr;
+      ctx.fillStyle = divColor(it[3]); ctx.strokeStyle = it[4] === st.sel ? css("--accent") : css("--sensor"); ctx.lineWidth = (it[4] === st.sel ? 2.4 : 1.2) * dpr;
+      ctx.beginPath(); ctx.rect(it[2][0] - r, it[2][1] - r, 2 * r, 2 * r); ctx.fill(); ctx.stroke();
+    }
+  }
+}
+
+// ---------------------------------------------------------------- 2D charts
+function axes(c, pad) {
+  const g = c.getContext("2d"); fitCanvas(c);
+  g.clearRect(0, 0, c.width, c.height);
+  return g;
+}
+function drawMap() {
+  const c = $("mapc"), g = axes(c), dpr = window.devicePixelRatio || 1, W = c.width, H = c.height;
+  const src = st.src, T = src.T, S = st.sensors.length;
+  const xs = st.sensors.map(p => p[0]), ys = st.sensors.map(p => p[1]);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const padmm = Math.max(10, 0.08 * Math.max(x1 - x0, y1 - y0)); x0 -= padmm; x1 += padmm; y0 -= padmm; y1 += padmm;
+  const sc = Math.min((W - 20 * dpr) / (x1 - x0), (H - 20 * dpr) / (y1 - y0));
+  const ox = (W - sc * (x1 - x0)) / 2, oy = (H - sc * (y1 - y0)) / 2;
+  const vals = []; let mx = 1e-9;
+  for (let s = 0; s < S; s++) { const v = st.noiseB[s * T + st.t]; vals.push(v); mx = Math.max(mx, Math.abs(v)); }
+  // global scale over time for stable colours
+  let gmax = 1e-9; for (let i = 0; i < st.noiseB.length; i++) gmax = Math.max(gmax, Math.abs(st.noiseB[i]));
+  const N = 64, cw = (x1 - x0) / N, ch = (y1 - y0) / N;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const x = x0 + (i + .5) * cw, y = y0 + (j + .5) * ch;
+    let num = 0, den = 0, near = 1e9;
+    for (let s = 0; s < S; s++) { const d2 = (x - xs[s]) ** 2 + (y - ys[s]) ** 2 + 1; const w = 1 / (d2 * d2); num += w * vals[s]; den += w; near = Math.min(near, d2); }
+    if (Math.sqrt(near) > 2.2 * Math.max(cw * 6, readArray().sp)) continue;
+    g.fillStyle = divColor(num / den / gmax);
+    g.fillRect(ox + (x - x0 - cw / 2) * sc, oy + (y1 - y - ch / 2) * sc, cw * sc + 1, ch * sc + 1);
+  }
+  st.mapGeom = { x0, y1, sc, ox, oy };
+  for (let s = 0; s < S; s++) {
+    const px = ox + (xs[s] - x0) * sc, py = oy + (y1 - ys[s]) * sc, r = (s === st.sel ? 5 : 2.5) * dpr;
+    g.fillStyle = s === st.sel ? css("--accent") : css("--ink"); g.globalAlpha = s === st.sel ? 1 : .55;
+    g.beginPath(); g.arc(px, py, r, 0, 7); g.fill(); g.globalAlpha = 1;
+  }
+  g.fillStyle = css("--muted"); g.font = `${11 * dpr}px sans-serif`;
+  g.fillText("← patient's right", 8 * dpr, H - 8 * dpr); g.textAlign = "right"; g.fillText("patient's left →", W - 8 * dpr, H - 8 * dpr); g.textAlign = "left";
+  $("mapstat").textContent = `· max |B| now ${mx.toFixed(2)} pT · colour scale ±${gmax.toFixed(1)} pT`;
+}
+function tAxis() { return st.src.kind === "sim" ? st.src.s.t_ms : st.src.s.t_ms; }
+function drawTraces() {
+  const c = $("trc"), g = axes(c), dpr = window.devicePixelRatio || 1, W = c.width, H = c.height;
+  const src = st.src, T = src.T, S = st.sensors.length, t = tAxis();
+  const L = 46 * dpr, R = 10 * dpr, Tp = 10 * dpr, Bm = 22 * dpr;
+  let mx = 1e-9; for (let i = 0; i < st.noiseB.length; i++) mx = Math.max(mx, Math.abs(st.noiseB[i]));
+  const X = i => L + (W - L - R) * i / (T - 1), Y = v => Tp + (H - Tp - Bm) * (0.5 - v / (2 * mx));
+  g.strokeStyle = css("--grid"); g.lineWidth = dpr; g.beginPath(); g.moveTo(L, Y(0)); g.lineTo(W - R, Y(0)); g.stroke();
+  g.globalAlpha = .35; g.strokeStyle = css("--muted"); g.lineWidth = .8 * dpr;
+  for (let s = 0; s < S; s++) { if (s === st.sel) continue; g.beginPath(); for (let i = 0; i < T; i++) { const y = Y(st.noiseB[s * T + i]); i ? g.lineTo(X(i), y) : g.moveTo(X(i), y); } g.stroke(); }
+  g.globalAlpha = 1; g.strokeStyle = css("--accent"); g.lineWidth = 2 * dpr; g.beginPath();
+  for (let i = 0; i < T; i++) { const y = Y(st.noiseB[st.sel * T + i]); i ? g.lineTo(X(i), y) : g.moveTo(X(i), y); } g.stroke();
+  g.strokeStyle = css("--ink"); g.lineWidth = dpr; g.beginPath(); g.moveTo(X(st.t), Tp); g.lineTo(X(st.t), H - Bm); g.stroke();
+  g.fillStyle = css("--muted"); g.font = `${11 * dpr}px sans-serif`;
+  g.fillText(`+${mx.toFixed(1)} pT`, 2, Tp + 8 * dpr); g.fillText(`−${mx.toFixed(1)}`, 2, H - Bm);
+  g.fillText(`${t[0]} ms`, L, H - 6 * dpr); g.textAlign = "right"; g.fillText(`${t[T - 1]} ms`, W - R, H - 6 * dpr); g.textAlign = "left";
+  $("trstat").textContent = `· ${S} sensors · highlighted: ${st.names[st.sel] || st.sel} (${st.noiseB[st.sel * T + st.t].toFixed(2)} pT)`;
+}
+function drawDipole() {
+  const c = $("dipc"), g = axes(c), dpr = window.devicePixelRatio || 1, W = c.width, H = c.height;
+  const src = st.src;
+  if (src.kind !== "sim") { g.fillStyle = css("--muted"); g.font = `${12 * dpr}px sans-serif`; g.fillText("measured source: no current data", 10 * dpr, 24 * dpr); $("dipstat").textContent = ""; return; }
+  const d = src.s.dipole_uAm, T = d.length, mx = Math.max(...d) || 1;
+  const X = i => 10 * dpr + (W - 20 * dpr) * i / (T - 1), Y = v => H - 8 * dpr - (H - 18 * dpr) * v / mx;
+  g.strokeStyle = css("--ink"); g.lineWidth = 1.6 * dpr; g.beginPath();
+  for (let i = 0; i < T; i++) i ? g.lineTo(X(i), Y(d[i])) : g.moveTo(X(i), Y(d[i])); g.stroke();
+  g.strokeStyle = css("--accent"); g.beginPath(); g.moveTo(X(st.t), 4); g.lineTo(X(st.t), H - 4); g.stroke();
+  $("dipstat").textContent = `· |P| = ${d[st.t].toFixed(2)} µA·m (peak ${mx.toFixed(2)})`;
+}
+function drawAll() {
+  if (!st.src) return;
+  draw3d(); drawMap(); drawTraces(); drawDipole();
+  const t = tAxis()[st.t];
+  $("tlabel").textContent = `${t} ms`; $("maptime").textContent = `${t} ms`;
+}
+
+// ---------------------------------------------------------------- UI wiring
+function setLabels() {
+  const a = readArray();
+  $("nxv").textContent = a.nx; $("nyv").textContent = a.ny; $("spv").textContent = a.sp + " mm";
+  $("cxv").textContent = a.cx + " mm"; $("cyv").textContent = a.cy + " mm"; $("sov").textContent = a.so + " mm";
+  $("rotv").textContent = a.rot + "°"; $("noisev").textContent = a.noise + " fT/√Hz";
+  const grid = a.preset === "grid";
+  for (const id of ["nx", "ny", "sp"]) $(id).disabled = !grid || st.src?.kind === "meas";
+}
+function presetDefaults() {
+  const src = st.src, a = readArray();
+  if (src.kind === "meas") {
+    $("preset").value = src.s.preset; $("cx").value = src.s.centre[0]; $("cy").value = src.s.centre[1];
+    $("so").value = src.s.standoff; $("rot").value = 0; $("comp").value = "normal";
+  } else {
+    const c = DATA.centres[`${src.s.kind}|${a.preset}`] || [0, 0];
+    $("cx").value = Math.round(c[0]); $("cy").value = Math.round(c[1]);
+    $("so").value = a.preset === "ptb49" ? 45 : a.preset === "kiel36" ? 20 : 10; $("rot").value = 0;
+  }
+}
+function recompute() {
+  if (!st.src) return;
+  setLabels(); placeSensors(st.src); computeB(st.src); drawAll();
+  const a = readArray();
+  $("arraynote").textContent = st.src.kind === "meas"
+    ? "Measured recording: sensor positions are the real layout, shown on the S1 chest for orientation; the array controls are fixed."
+    : `${st.sensors.length} sensors, plane ${(st.sensors[0][2]).toFixed(0)} mm in front of the tissue centroid (${a.so} mm above the highest skin point under the array). Positions are relative to the heart centroid: x = patient's left, y = superior.`;
+}
+async function selectSource() {
+  $("loading").style.display = "grid";
+  const key = $("src").value;
+  st.src = await loadSource(key);
+  st.t = 0; $("time").max = st.src.T - 1; $("time").value = 0;
+  if (st.src.kind === "meas") { st.t = Math.max(0, st.src.s.t_ms.indexOf(st.src.s.p_onset - (st.src.s.p_onset % 2))); $("time").value = st.t; }
+  $("title3d").innerHTML = st.src.kind === "sim" ? `${st.src.s.title} <span class="pill">${st.src.s.label}</span>` : st.src.s.title;
+  for (const id of ["preset", "cx", "cy", "so", "rot", "comp"]) $(id).disabled = st.src.kind === "meas";
+  presetDefaults(); recompute();
+  $("loading").style.display = "none";
+}
+function exportCSV() {
+  const src = st.src, T = src.T, t = tAxis();
+  const lines = [`# CardioMag export: ${src.kind === "sim" ? src.s.title : src.s.title}`,
+    `# component: ${readArray().comp}; noise ${readArray().noise} fT/sqrt(Hz); units pT; positions mm (x left, y superior, z anterior; origin heart centroid)`,
+    "# sensor,x_mm,y_mm,z_mm", ...st.sensors.map((p, i) => `# ${st.names[i]},${p.map(v => v.toFixed(1)).join(",")}`),
+    ["t_ms", ...st.names].join(",")];
+  for (let i = 0; i < T; i++) { const row = [t[i]]; for (let s = 0; s < st.sensors.length; s++) row.push(st.noiseB[s * T + i].toFixed(4)); lines.push(row.join(",")); }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `cardiomag_${(src.kind === "sim" ? src.s.id : src.s.id).replace(/[^a-z0-9]+/gi, "_")}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function init() {
+  st.dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const sel = $("src");
+  const groups = [["Simulated - atria", s => s.kind === "atria"], ["Simulated - ventricles", s => s.kind === "ventricles"]];
+  for (const [label, f] of groups) {
+    const og = document.createElement("optgroup"); og.label = label;
+    DATA.sources.forEach((s, i) => { if (f(s)) { const o = document.createElement("option"); o.value = `sim:${i}`; o.textContent = s.title; og.appendChild(o); } });
+    if (og.children.length) sel.appendChild(og);
+  }
+  if (DATA.measured.length) {
+    const og = document.createElement("optgroup"); og.label = "Measured (healthy)";
+    DATA.measured.forEach((s, i) => { const o = document.createElement("option"); o.value = `meas:${i}`; o.textContent = s.title; og.appendChild(o); });
+    sel.appendChild(og);
+  }
+  $("kcal").textContent = DATA.k_cal;
+  $("vmbar").style.background = `linear-gradient(90deg, ${[0, 64, 128, 170, 210, 255].map(vmColor).join(",")})`;
+  $("divbar").style.background = `linear-gradient(90deg, ${[-1, -.5, 0, .5, 1].map(divColor).join(",")})`;
+  sel.onchange = selectSource;
+  $("time").oninput = e => { st.t = +e.target.value; drawAll(); };
+  $("play").onclick = () => { st.playing = !st.playing; $("play").textContent = st.playing ? "❚❚" : "▶"; if (st.playing) tick(); };
+  for (const id of ["nx", "ny", "sp", "cx", "cy", "so", "rot", "comp"]) $(id).oninput = () => recompute();
+  $("noise").oninput = () => { setLabels(); addNoise(st.src); drawAll(); };
+  $("preset").onchange = () => { presetDefaults(); recompute(); };
+  $("reset").onclick = () => { presetDefaults(); recompute(); };
+  $("export").onclick = exportCSV;
+  for (const id of ["tVm", "tJ", "tSkin", "tSens"]) $(id).onchange = draw3d;
+  $("vFront").onclick = () => { st.yaw = 0; st.pitch = 0; draw3d(); };
+  $("vSide").onclick = () => { st.yaw = -Math.PI / 2; st.pitch = 0; draw3d(); };
+  $("theme").onclick = () => {
+    const cur = document.documentElement.dataset.theme || (st.dark ? "dark" : "light");
+    document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark"; st.dark = document.documentElement.dataset.theme === "dark"; drawAll();
+  };
+  let drag = null;
+  cv.onpointerdown = e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing"; };
+  cv.onpointermove = e => { if (!drag) return; st.yaw += (e.clientX - drag[0]) * 0.01; st.pitch = Math.max(-1.5, Math.min(1.5, st.pitch + (e.clientY - drag[1]) * 0.01)); drag = [e.clientX, e.clientY]; draw3d(); };
+  cv.onpointerup = () => { drag = null; cv.style.cursor = "grab"; };
+  cv.onwheel = e => { e.preventDefault(); st.zoom = Math.max(.4, Math.min(5, st.zoom * Math.exp(-e.deltaY * 0.001))); draw3d(); };
+  $("mapc").onclick = e => {
+    const g = st.mapGeom; if (!g) return; const r = $("mapc").getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const px = (e.clientX - r.left) * dpr, py = (e.clientY - r.top) * dpr;
+    let best = 0, bd = 1e18;
+    st.sensors.forEach((p, s) => { const d = ((g.ox + (p[0] - g.x0) * g.sc) - px) ** 2 + ((g.oy + (g.y1 - p[1]) * g.sc) - py) ** 2; if (d < bd) { bd = d; best = s; } });
+    st.sel = best; drawAll();
+  };
+  window.addEventListener("resize", drawAll);
+  selectSource();
+}
+let last = 0;
+function tick(ts) {
+  if (!st.playing) return;
+  if (!ts || ts - last > 45) { last = ts || 0; st.t = (st.t + 1) % st.src.T; $("time").value = st.t; drawAll(); }
+  requestAnimationFrame(tick);
+}
+init();
+</script>
+</body>
+</html>

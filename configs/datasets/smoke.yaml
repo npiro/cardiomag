@@ -1,0 +1,12 @@
+# Tiny dataset for tests / CI (one atrial heart per split, few samples).
+name: smoke
+kind: atria
+seed: 0
+array: {preset: grid, nx: 4, ny: 4, spacing_mm: 40, standoff_mm: 10}
+placements_per_heart: 1
+time: {t0_ms: -10, t1_ms: 160, dt_ms: 4}
+samples_per_heart: {healthy: 6, slow_patch: 2, ia_block: 2, ectopic: 2}
+splits:
+  train: [biatrial:S1]
+  val: [biatrial:S2]
+  test: [biatrial:S3]
