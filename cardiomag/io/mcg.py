@@ -163,7 +163,11 @@ def real_windows(preset: str, kind: str, t0_ms: float, t1_ms: float, dt_ms: floa
     out = []
     for r in recs:
         if kind == "atria":
-            out.append((r["name"], window(r["beat_p"], r["p_onset"], t0_ms, t1_ms, dt_ms)))
+            w = window(r["beat_p"], r["p_onset"], t0_ms, t1_ms, dt_ms)
+            # the simulation has no ventricles: fade the signal out before the QRS starts
+            tq = r["p_onset"] + np.arange(t0_ms, t1_ms, dt_ms)
+            fade = np.clip((r["qrs_onset"] - 10 - tq) / 20.0, 0, 1)
+            out.append((r["name"], w * fade[None, :]))
         else:
             out.append((r["name"], window(r["beat"], r["qrs_onset"], t0_ms, t1_ms, dt_ms)))
     return out

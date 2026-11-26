@@ -65,7 +65,20 @@ def _skin(h):
     return dict(type="flat", z=h.skin_fn.z * 1e3)
 
 
-def build(out: Path, quick=False, seed=0):
+def artifact_body(html: str) -> str:
+    """Strip the document skeleton (claude.ai adds its own <!doctype>/<html>/<head>/<body>)."""
+    import re
+    html = re.sub(r"(?is)<!doctype html>\s*", "", html)
+    html = re.sub(r"(?is)</?html[^>]*>|</?head>|</?body>", "", html)
+    html = re.sub(r'(?i)<meta charset="utf-8">\s*|<meta name="viewport"[^>]*>\s*', "", html)
+    # artifact viewers cannot download files: keep only the clipboard export
+    html = re.sub(r"(?s)/\*DOWNLOAD\*/.*?/\*/DOWNLOAD\*/", "", html)
+    html = html.replace('<button class="primary" id="export">Download CSV</button>', "")
+    html = html.replace('<button id="copycsv">Copy CSV</button>', '<button class="primary" id="copycsv">Copy CSV</button>')
+    return html.strip() + "\n"
+
+
+def build(out: Path, quick=False, seed=0, artifact=False):
     rng = np.random.default_rng(seed)
     sources, skins = [], {}
     t_at = np.arange(-10, 170, 2.0)
@@ -129,6 +142,8 @@ def build(out: Path, quick=False, seed=0):
     payload = dict(sources=sources, measured=measured, skins=skins, presets=presets, centres=centres,
                    k_cal=lf.K_CAL, version="0.1")
     html = TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload))
+    if artifact:
+        html = artifact_body(html)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(html)
     print(f"[viewer] {out} ({out.stat().st_size / 1e6:.1f} MB, {len(sources)} simulated + {len(measured)} measured)")
@@ -138,8 +153,18 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="viewer/cardiomag_viewer.html")
     ap.add_argument("--quick", action="store_true", help="S1 + one ventricle only (fast build)")
+    ap.add_argument("--artifact", action="store_true", help="omit the document skeleton (for claude.ai Artifacts)")
+    ap.add_argument("--from-html", default=None, help="re-template an existing built viewer (reuse its data)")
     a = ap.parse_args(argv)
-    build(Path(a.out), quick=a.quick)
+    if a.from_html:
+        import re
+        old = Path(a.from_html).read_text()
+        data = re.search(r"const DATA = (\{.*?\});\nconst \$ =", old, re.S).group(1)
+        html = TEMPLATE.read_text().replace("/*__DATA__*/null", data)
+        Path(a.out).write_text(artifact_body(html) if a.artifact else html)
+        print(f"[viewer] {a.out} re-templated from {a.from_html}")
+        return
+    build(Path(a.out), quick=a.quick, artifact=a.artifact)
 
 
 if __name__ == "__main__":

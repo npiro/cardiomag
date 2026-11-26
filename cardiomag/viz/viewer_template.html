@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CardioMag Viewer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
 :root {
   --bg: #f6f5f2; --panel: #ffffff; --ink: #1d1f23; --muted: #6b6f76; --line: #e3e1dc;
@@ -14,17 +15,18 @@
   :root:not([data-theme="light"]) {
     --bg: #121316; --panel: #1b1d21; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2c2f35;
     --accent: #fb923c; --accent-soft: #3a2416; --sensor: #60a5fa; --pos: #fb923c; --neg: #60a5fa;
-    --grid: #24272c; --shadow: none;
+    --grid: #24272c; --shadow: none; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #121316; --panel: #1b1d21; --ink: #e8e6e1; --muted: #9a9ea6; --line: #2c2f35;
   --accent: #fb923c; --accent-soft: #3a2416; --sensor: #60a5fa; --pos: #fb923c; --neg: #60a5fa;
-  --grid: #24272c; --shadow: none;
+  --grid: #24272c; --shadow: none; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
-header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--panel); }
+header { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; padding-block: 14px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; }
 header h1 { font-size: 16px; margin: 0; font-weight: 650; letter-spacing: -.01em; }
 header .sub { color: var(--muted); font-size: 12px; }
 select, input, button { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 5px 8px; }
@@ -33,7 +35,12 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 .timebar { display: flex; align-items: center; gap: 10px; flex: 1 1 360px; min-width: 260px; }
 .timebar input[type=range] { flex: 1; accent-color: var(--accent); }
 .tlabel { font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }
-main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 16px; padding: 16px 20px 28px; max-width: 1600px; margin: 0 auto; }
+main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 16px; padding-block: 16px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); max-width: 1600px; margin: 0 auto; }
+.credits { grid-column: 1 / -1; }
+.credits ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
+.credits a { color: var(--accent); }
+.credits .lic { display: inline-block; font-size: 11px; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); margin-left: 4px; white-space: nowrap; }
+#csvbox { width: 100%; height: 120px; margin-top: 8px; font: 12px/1.4 ui-monospace, Menlo, monospace; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 12px 14px; min-width: 0; }
 .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
 .col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -58,9 +65,10 @@ canvas.chart { width: 100%; display: block; }
 .stats { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
 details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 @media (max-width: 960px) {
-  main { grid-template-columns: 1fr; padding: 12px 16px; }
+  main { grid-template-columns: 1fr; padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   #view3d { height: 420px; }
-  header { padding: 12px 16px; }
+  header { padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  select#src { min-width: 0 !important; width: 100%; }
 }
 </style>
 </head>
@@ -121,8 +129,10 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
       </div>
       <div class="row">
         <button id="reset">reset to preset default</button>
-        <button class="primary" id="export">Export signals (CSV)</button>
+        <button class="primary" id="export">Download CSV</button>
+        <button id="copycsv">Copy CSV</button>
       </div>
+      <textarea id="csvbox" hidden readonly aria-label="CSV export"></textarea>
       <p class="note" id="arraynote"></p>
     </div>
     <div class="card">
@@ -140,6 +150,18 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
       </details>
     </div>
   </div>
+
+  <section class="card credits" aria-labelledby="credits-h">
+    <h2 id="credits-h">Data sources and credits</h2>
+    <ol>
+      <li>Atrial patient models (meshes, fibres, torsos, reference activation): E. Zappon et al., <i>An efficient end-to-end computational framework for the generation of ECG calibrated volumetric models of human atrial electrophysiology</i>, Zenodo, 2025. <a href="https://doi.org/10.5281/zenodo.17143584" target="_blank" rel="noopener">doi:10.5281/zenodo.17143584</a><span class="lic">CC BY 4.0</span></li>
+      <li>Healthy ventricles: C. Rodero, M. Strocchi, M. Marciniak et al., <i>Virtual cohort of adult healthy four-chamber heart meshes from CT images</i>, Zenodo, 2021. <a href="https://doi.org/10.5281/zenodo.4590294" target="_blank" rel="noopener">doi:10.5281/zenodo.4590294</a><span class="lic">CC BY 4.0</span></li>
+      <li>Heart-failure ventricles: M. Strocchi, C. M. Augustin, M. A. F. Gsell et al., <i>A publicly available virtual cohort of four-chamber heart meshes for cardiac electro-mechanics simulations</i>, Zenodo, 2020. <a href="https://doi.org/10.5281/zenodo.3890034" target="_blank" rel="noopener">doi:10.5281/zenodo.3890034</a><span class="lic">CC BY 4.0</span></li>
+      <li>PTB SQUID recording: H. Koch, R.-D. Bousseljot, O. Kosch et al., <i>A reference dataset for verifying numerical electrophysiological heart models</i>, BioMedical Engineering OnLine 10:11, 2011. <a href="https://doi.org/10.1186/1475-925X-10-11" target="_blank" rel="noopener">doi:10.1186/1475-925X-10-11</a><span class="lic">CC BY 2.0</span></li>
+      <li>Kiel OPM recordings: E. Engelhardt, N. Frey, G. Schmidt, <i>Kiel Cardio Database</i> v1.0.0, PhysioNet. <a href="https://physionet.org/content/kiel-cardio/1.0.0/" target="_blank" rel="noopener">physionet.org/content/kiel-cardio/1.0.0</a><span class="lic">CC BY-SA 4.0</span>. PhysioNet: A. L. Goldberger et al., <i>Circulation</i> 101(23):e215–e220, 2000.</li>
+    </ol>
+    <p class="note">Changes made here: meshes re-oriented into a body frame; activation re-simulated with an eikonal model (healthy and abnormal scenarios); currents and magnetic fields computed with cardiomag; recordings reduced to R-peak-aligned median beats and resampled to 2 ms. The Kiel-derived beats in this page are adapted material shared under CC BY-SA 4.0. Research visualisation only, not for clinical use.</p>
+  </section>
 </main>
 
 <script>
@@ -482,21 +504,32 @@ async function selectSource() {
   presetDefaults(); recompute();
   $("loading").style.display = "none";
 }
-function exportCSV() {
+function buildCSV() {
   const src = st.src, T = src.T, t = tAxis();
   const lines = [`# CardioMag export: ${src.kind === "sim" ? src.s.title : src.s.title}`,
     `# component: ${readArray().comp}; noise ${readArray().noise} fT/sqrt(Hz); units pT; positions mm (x left, y superior, z anterior; origin heart centroid)`,
     "# sensor,x_mm,y_mm,z_mm", ...st.sensors.map((p, i) => `# ${st.names[i]},${p.map(v => v.toFixed(1)).join(",")}`),
     ["t_ms", ...st.names].join(",")];
   for (let i = 0; i < T; i++) { const row = [t[i]]; for (let s = 0; s < st.sensors.length; s++) row.push(st.noiseB[s * T + i].toFixed(4)); lines.push(row.join(",")); }
-  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  return lines.join("\n");
+}
+/*DOWNLOAD*/function exportCSV() {
+  const src = st.src;
+  const blob = new Blob([buildCSV()], { type: "text/csv" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
   a.download = `cardiomag_${(src.kind === "sim" ? src.s.id : src.s.id).replace(/[^a-z0-9]+/gi, "_")}.csv`; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+/*/DOWNLOAD*/
 
+function themeIsDark() {
+  const t = document.documentElement.dataset.theme;
+  return t ? t === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
 function init() {
-  st.dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  st.dark = themeIsDark();
+  new MutationObserver(() => { st.dark = themeIsDark(); drawAll(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { st.dark = themeIsDark(); drawAll(); });
   const sel = $("src");
   const groups = [["Simulated - atria", s => s.kind === "atria"], ["Simulated - ventricles", s => s.kind === "ventricles"]];
   for (const [label, f] of groups) {
@@ -519,13 +552,21 @@ function init() {
   $("noise").oninput = () => { setLabels(); addNoise(st.src); drawAll(); };
   $("preset").onchange = () => { presetDefaults(); recompute(); };
   $("reset").onclick = () => { presetDefaults(); recompute(); };
-  $("export").onclick = exportCSV;
+  /*DOWNLOAD*/if ($("export")) $("export").onclick = exportCSV;/*/DOWNLOAD*/
+  $("copycsv").onclick = () => {
+    const txt = buildCSV(), box = $("csvbox");
+    const show = (msg) => { box.value = txt; box.hidden = false; box.focus(); box.select(); $("copycsv").textContent = msg; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(() => { $("copycsv").textContent = "Copied"; setTimeout(() => $("copycsv").textContent = "Copy CSV", 1500); },
+        () => show("Select and copy below"));
+    } else show("Select and copy below");
+  };
   for (const id of ["tVm", "tJ", "tSkin", "tSens"]) $(id).onchange = draw3d;
   $("vFront").onclick = () => { st.yaw = 0; st.pitch = 0; draw3d(); };
   $("vSide").onclick = () => { st.yaw = -Math.PI / 2; st.pitch = 0; draw3d(); };
   $("theme").onclick = () => {
     const cur = document.documentElement.dataset.theme || (st.dark ? "dark" : "light");
-    document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark"; st.dark = document.documentElement.dataset.theme === "dark"; drawAll();
+    document.documentElement.dataset.theme = cur === "dark" ? "light" : "dark";
   };
   let drag = null;
   cv.onpointerdown = e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); cv.style.cursor = "grabbing"; };

@@ -72,7 +72,8 @@ def load_config(path, overrides=()):
 def _datasets(cfg, task):
     dc = cfg["data"]
     common = dict(target=dc.get("target", "anomaly"), normalize=dc.get("normalize", "sample_rms"),
-                  noise_fT_rtHz=dc.get("noise_fT_rtHz", 0.0), seed=cfg.get("seed", 0))
+                  noise_fT_rtHz=dc.get("noise_fT_rtHz", 0.0), seed=cfg.get("seed", 0),
+                  acquisition=dc.get("acquisition"))
     healthy_only = task == "reconstruct"
     sh = dc.get("split_hearts") or {}
     ds = {"train": MCGDataset(dc["root"], "train", augment=dc.get("augment"), healthy_only=healthy_only,
@@ -101,6 +102,10 @@ def predict(model, loader, device, task):
             scores.append(1.0 - p[:, 0])  # anomaly score = 1 - P(class 0 = healthy/normal)
         ys.append(y.numpy())
     return (np.concatenate(scores), np.concatenate(probs) if probs else None, np.concatenate(ys))
+
+
+def _scores(model, ds, device, task):
+    return predict(model, DataLoader(ds, batch_size=256), device, task)[0]
 
 
 def evaluate_split(model, ds, device, task, threshold, bs=256):
@@ -222,8 +227,30 @@ def evaluate(run_dir):
                 w.writerow(["index", "heart", "label", "anomaly", "score"])
                 for i, (h, m, a, v) in enumerate(zip(ds[split].heart, ds[split].meta, ds[split].anomaly, s)):
                     w.writerow([i, h, m.get("label"), int(a), float(v)])
+    # --- sim-to-real diagnostics on measured healthy recordings
+    if "real" in ds and "test" in ds:
+        real_sc = np.array([float(x) for x in _scores(model, ds["real"], device, task)])
+        test_sc = _scores(model, ds["test"], device, task)
+        healthy_test = test_sc[ds["test"].anomaly == 0]
+        results["real_percentile_in_sim_healthy"] = [float((healthy_test < v).mean() * 100) for v in real_sc]
+        if real_sc.size >= 3:
+            # threshold from the OTHER real healthy subjects (leave-one-subject-out): max score + 10 %
+            flags = []
+            for i in range(real_sc.size):
+                thr_i = np.max(np.delete(real_sc, i)) * 1.1 if task == "reconstruct" else \
+                    min(1.0, np.max(np.delete(real_sc, i)) + 0.1 * (1 - np.max(np.delete(real_sc, i))))
+                flags.append(bool(real_sc[i] > thr_i))
+            thr_all = np.max(real_sc) * 1.1 if task == "reconstruct" else \
+                min(1.0, np.max(real_sc) + 0.1 * (1 - np.max(real_sc)))
+            results["real_calibrated"] = dict(
+                threshold_rule="max real healthy score + 10 % margin (leave-one-subject-out for the FPR)",
+                real_fpr_loo=float(np.mean(flags)),
+                **{k: v for k, v in M.detection_report(test_sc, ds["test"].anomaly, ds["test"].y,
+                                                       ds["test"].info["classes"], thr_all).items()
+                   if k != "threshold"}, threshold=float(thr_all))
     json.dump(results, open(run_dir / "results.json", "w"), indent=2)
-    print(json.dumps({k: v for k, v in results.items() if k in ("test", "real")}, indent=1)[:3000], flush=True)
+    print(json.dumps({k: v for k, v in results.items() if k in ("test", "real", "real_percentile_in_sim_healthy",
+                                                                  "real_calibrated")}, indent=1)[:4000], flush=True)
     return results
 
 

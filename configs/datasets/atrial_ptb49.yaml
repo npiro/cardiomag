@@ -4,8 +4,8 @@ kind: atria
 seed: 1
 array: {preset: ptb49, standoff_mm: 45}
 placements_per_heart: 4
-placement_jitter: {centre_mm: 12, standoff_mm: 8, rotation_deg: 5, heart_rot_deg: 4}
-time: {t0_ms: -10, t1_ms: 160, dt_ms: 2}        # relative to first activation / P onset
+placement_jitter: {centre_mm: 25, standoff_mm: 12, rotation_deg: 10, heart_rot_deg: 12}   # broad: real geometry is unknown
+time: {t0_ms: -40, t1_ms: 240, dt_ms: 2}        # long window; the acquisition model aligns + crops
 samples_per_heart: {healthy: 240, slow_patch: 80, ia_block: 80, ectopic: 80}
 splits:                                         # split by heart: no anatomy in two splits
   train: [biatrial:S1, biatrial:S2]
