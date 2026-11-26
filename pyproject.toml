@@ -7,6 +7,7 @@ name = "cardiomag"
 version = "0.1.0"
 description = "Cardiac magnetic field modelling (MCG), simulated healthy/abnormal hearts, sensor arrays and ML anomaly detection"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "scipy>=1.10", "pyyaml>=6", "matplotlib>=3.7"]
 

@@ -1,5 +1,7 @@
 # cardiomag
 
+**Live viewer:** https://npiro.github.io/cardiomag/ (interactive, runs in the browser; ~12 MB)
+
 Cardiac magnetic-field modelling and anomaly detection:
 
 - **Physics**: primary cardiac current `J = −σᵢ∇Vₘ` on tetrahedral heart meshes and the magnetic field at
@@ -71,6 +73,16 @@ Physics and calibration notes:
   activation times (≈160–210 ms) because no right-sided conduction remains.
 - **Repolarisation.** It is not modelled. Windows are 170 ms (P-wave) and 210 ms (QRS) from onset.
 
+## Publishing the viewer
+
+The viewer is one self-contained HTML file. GitHub Pages serves the latest build from the `gh-pages`
+branch. CI cannot build it, because the build needs the raw datasets, so publish a local build:
+
+```bash
+cardiomag-viewer --out viewer/cardiomag_viewer.html
+scripts/publish_pages.sh viewer/cardiomag_viewer.html
+```
+
 ## Training on your own model
 
 Any `torch.nn.Module` with the constructor `Model(n_sensors, n_times, n_outputs, **kwargs)` plugs in:
@@ -123,3 +135,10 @@ environment/        setup_env.sh, Dockerfile
 remote/             skypilot.yaml, run_ssh.sh
 tests/              pytest + headless viewer check (tests/js)
 ```
+
+## License
+
+The code is released under the [MIT License](LICENSE). The datasets it reads are **not** part of this
+repository and keep their own licences: the Zenodo heart models are CC BY 4.0, the PTB reference
+dataset is CC BY 2.0 and the Kiel Cardio Database is CC BY-SA 4.0. Material derived from them, such as
+the built viewer, must credit those sources; the viewer's credits section does this.
