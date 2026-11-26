@@ -1,0 +1,20 @@
+run_name: whole_resnet_label
+out_dir: runs
+seed: 0
+device: auto            # auto picks cuda > mps > cpu
+data:
+  root: data/whole_ptb49
+  target: label            # anomaly (binary) | label (scenario class)
+  normalize: sample_rms # shape only: robust to amplitude calibration / sensor distance
+  acquisition:          # identical for simulated and real data (cardiomag/data/acquisition.py)
+    lowpass_hz: 80
+    onset_frac: 0.10
+    pre_ms: 250
+    len_ms: 700
+    snr: [80, 600]      # simulated noise; measured QRS SNR 115-580 (PTB, Kiel)
+  augment: {amp_jitter: 0.1, onset_jitter_ms: 3, channel_dropout: 0.05}
+model:
+  name: resnet1d              # built-in: cnn1d | resnet1d | conv_ae, or  target: "my_pkg.module:MyModel"
+  kwargs: {}
+optim: {lr: 1.0e-3, weight_decay: 1.0e-4, epochs: 40, batch_size: 64, patience: 10}
+workers: 0
