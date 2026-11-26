@@ -102,11 +102,14 @@ def default_centre_mm(kind: str, preset: str):
     """Nominal array centre relative to the heart (tissue) centroid, (left, superior) in mm.
     ptb49 : atria - sternum at the V1/V2 (4th intercostal) level (where the atrial K_CAL was calibrated);
             ventricles / whole heart - registered against the measured PTB R/T/P maps on whole-heart
-            simulations (scripts/register_ptb.py: centre (-120, -80) mm, map correlations R 0.71,
+            simulations (scripts/register_array.py: centre (-120, -80) mm, map correlations R 0.71,
             T 0.77, P 0.53 vs 0.11 / 0.21 / -0.27 at the anatomical guess (-30, 0))
-    kiel36: registered on whole-heart simulations against the 7 measured subjects (R- and T-peak
+    kiel36: registered on whole-heart simulations against the 7 measured subjects (R-, T-, P-peak
             maps): centre ~(40, 50) mm from the ventricular centroid, i.e. ~(95, 30) mm from the atrial
-            centroid (scripts/register_*.py; the README's shoulder-line geometry put it ~8 cm too high)
+            centroid (the README's shoulder-line geometry put it ~8 cm too high). Re-checked with
+            scripts/register_array.py --preset kiel36 (axis flips x centre grid): best unflipped at
+            (40, 40), mean corr R 0.69 / T 0.45 / P 0.32; the residual is between-subject (one subject
+            with an inverted T map, two with inverted P maps), not placement.
     grid  : over the heart"""
     table = {("atria", "ptb49"): (5.0, -76.0), ("atria", "kiel36"): (95.0, 30.0), ("atria", "grid"): (0.0, -20.0),
              ("ventricles", "ptb49"): (-120.0, -80.0), ("ventricles", "kiel36"): (40.0, 50.0),
