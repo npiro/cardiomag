@@ -21,6 +21,11 @@ import scipy.sparse as sp
 MU0_4PI = 1e-7
 SIGMA_IL_PHYS = 0.174   # S/m (openCARP default g_il)
 K_CAL = 0.33            # effective amplitude calibration (see module docstring)
+# Ventricular amplitude factor (relative to K_CAL): the simplified fast endocardial layer activates the
+# ventricles too synchronously (opposite walls cancel), giving a QRS/P ratio of ~2.7 against 15.6 measured
+# (median of PTB + 7 Kiel recordings, a model-free ratio). Effective factor so the ratio matches; with it
+# the simulated PTB-layout QRS is ~47 pT vs 48 pT measured.
+K_VENT = 5.9
 
 
 def element_geometry(points, tets):
@@ -39,9 +44,13 @@ def element_geometry(points, tets):
     return centroid, vol, g
 
 
-def conductivity_tensors(fibres, region, region_names, cv, k_cal=K_CAL, scale=None):
-    """(E,3,3) intracellular conductivity tensors. `scale` (E,) multiplies sigma (e.g. 0 in scar)."""
+def conductivity_tensors(fibres, region, region_names, cv, k_cal=K_CAL, scale=None, region_scale=None):
+    """(E,3,3) intracellular conductivity tensors. `scale` (E,) multiplies sigma (e.g. 0 in scar);
+    `region_scale` {region name: factor} (e.g. K_VENT for LV/RV)."""
     sl = np.full(region.shape, k_cal * SIGMA_IL_PHYS)
+    for idx, name in region_names.items():
+        if region_scale and name in region_scale:
+            sl[region == idx] *= region_scale[name]
     ratio = np.ones(region.shape)
     for idx, name in region_names.items():
         vl, vt = cv[name]
@@ -108,3 +117,9 @@ def voxel_moments(points, tets, sigma, vm_frames, voxel=0.006):
         for c in range(3):
             m[t, :, c] = np.bincount(vid, weights=me[:, c], minlength=nv)
     return centres, m
+
+
+def sigma_for(h, scale=None):
+    """Conductivity tensors of a HeartMesh, including its per-region factors."""
+    return conductivity_tensors(h.fibres, h.region, h.region_names, h.cv, scale=scale,
+                                region_scale=getattr(h, "sigma_region_scale", None))

@@ -168,6 +168,9 @@ def real_windows(preset: str, kind: str, t0_ms: float, t1_ms: float, dt_ms: floa
             tq = r["p_onset"] + np.arange(t0_ms, t1_ms, dt_ms)
             fade = np.clip((r["qrs_onset"] - 10 - tq) / 20.0, 0, 1)
             out.append((r["name"], w * fade[None, :]))
+        elif kind == "whole":
+            # whole beat: P wave .. T wave around the QRS onset (the acquisition model re-aligns)
+            out.append((r["name"], window(r["beat"], r["qrs_onset"], -300, 500, dt_ms)))
         else:
             out.append((r["name"], window(r["beat"], r["qrs_onset"], t0_ms, t1_ms, dt_ms)))
     return out

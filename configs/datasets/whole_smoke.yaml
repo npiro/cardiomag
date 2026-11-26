@@ -1,0 +1,34 @@
+name: whole_smoke
+kind: whole
+seed: 5
+array:
+  preset: ptb49
+  standoff_mm: 45
+placements_per_heart: 1
+placement_jitter:
+  centre_mm: 25
+  standoff_mm: 12
+  rotation_deg: 10
+  heart_rot_deg: 12
+time:
+  t0_ms: -150
+  t1_ms: 800
+  dt_ms: 2
+samples_per_heart:
+  normal: 2
+  av_block: 1
+  lbbb: 1
+  rbbb: 0
+  scar: 1
+  ia_block: 0
+  ectopic_atrial: 0
+  long_qt: 1
+hf_conduction:
+- normal
+- lbbb
+hf_samples_per_class: 1
+splits:
+  train:
+  - whole_healthy:01
+  test:
+  - whole_hf:01

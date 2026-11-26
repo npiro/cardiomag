@@ -33,6 +33,9 @@ class HeartMesh:
     skin_fn: object = None        # callable (x, y) -> anterior skin coordinate z (m)
     reference_at: np.ndarray | None = None          # provided activation times (ms), if any
     reference_vm: str | None = None                 # path to provided Vm (.igb), if any
+    sigma_region_scale: dict | None = None          # per-region conductivity factor (e.g. K_VENT)
+    connections: list = field(default_factory=list)  # interatrial connections (whole heart)
+    frame: dict | None = None                        # body transform: body = (orig_m - centre) @ R.T
 
     @property
     def n_nodes(self):
@@ -250,12 +253,19 @@ def load_strocchi(cohort: str = "healthy", cid: str = "01", rot_jitter_deg: floa
     centre = pts.mean(axis=0)
     body = (pts - centre) @ R.T
     region = np.where(tags == 1, 0, 1)
+    frame = dict(R=R, centre=centre, cohort=cohort, cid=cid)
     nf = dict(rho=d["rho"], z=d["z"], phi=d["phi"], v=d["v"])
     group = "healthy" if cohort == "healthy" else "heart_failure"
     return HeartMesh(name=f"strocchi_{cohort}_{cid}", kind="ventricles", group=group, points=body,
                      tets=tets, fibres=fib @ R.T, region=region, region_names={0: "LV", 1: "RV"},
                      cv={"LV": (0.5, 0.2), "RV": (0.5, 0.2)}, node_fields=nf,
+                     sigma_region_scale={"LV": _kvent(), "RV": _kvent()}, frame=frame,
                      skin_fn=HalfSpaceSkin(body[:, 2].max() + chest_wall_m))
+
+
+def _kvent():
+    from ..physics.leadfield import K_VENT
+    return K_VENT
 
 
 def available_hearts() -> dict:

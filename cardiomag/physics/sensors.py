@@ -101,11 +101,14 @@ class SensorArray:
 def default_centre_mm(kind: str, preset: str):
     """Nominal array centre relative to the heart (tissue) centroid, (left, superior) in mm.
     ptb49 : centred on the sternum at the V1/V2 (4th intercostal) level, as in the PTB recordings
-    kiel36: over the left upper chest, 0-15 cm below the shoulder line (Kiel README geometry)
+    kiel36: registered on whole-heart simulations against the 7 measured subjects (R- and T-peak
+            maps): centre ~(40, 50) mm from the ventricular centroid, i.e. ~(95, 30) mm from the atrial
+            centroid (scripts/register_*.py; the README's shoulder-line geometry put it ~8 cm too high)
     grid  : over the heart"""
-    table = {("atria", "ptb49"): (5.0, -76.0), ("atria", "kiel36"): (65.0, 90.0), ("atria", "grid"): (0.0, -20.0),
-             ("ventricles", "ptb49"): (-30.0, 0.0), ("ventricles", "kiel36"): (35.0, 130.0),
-             ("ventricles", "grid"): (20.0, -10.0)}
+    table = {("atria", "ptb49"): (5.0, -76.0), ("atria", "kiel36"): (95.0, 30.0), ("atria", "grid"): (0.0, -20.0),
+             ("ventricles", "ptb49"): (-30.0, 0.0), ("ventricles", "kiel36"): (40.0, 50.0),
+             ("ventricles", "grid"): (20.0, -10.0),
+             ("whole", "ptb49"): (-30.0, 0.0), ("whole", "kiel36"): (40.0, 50.0), ("whole", "grid"): (0.0, 0.0)}
     return table[(kind, preset)]
 
 

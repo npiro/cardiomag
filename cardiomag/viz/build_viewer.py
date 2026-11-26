@@ -26,6 +26,8 @@ from ..physics import leadfield as lf
 from ..physics.sensors import default_centre_mm, kiel36_layout, ptb49_layout
 from ..sim.eikonal import vm_from_at
 from ..sim.scenarios import AtrialSimulator, VentricularSimulator
+from ..sim.whole_heart import WholeHeartSimulator, load_whole_heart, vm_full
+from .surface import mesh_surface, strocchi_full_surface
 
 TEMPLATE = Path(__file__).with_name("viewer_template.html")
 
@@ -40,9 +42,18 @@ def _surface_nodes(points, n, rng):
     return idx
 
 
-def _source(h, at_ms, sigma_scale, label, title, t_ms, rng, n_disp=4500, voxel=0.008, disp_every=2):
-    vm = vm_from_at(at_ms, t_ms).astype(np.float32)            # (T, N) mV
-    sig = lf.conductivity_tensors(h.fibres, h.region, h.region_names, h.cv, scale=sigma_scale)
+def _surface_payload(verts, tris, lab, names):
+    return dict(verts=_b64((verts * 1e3).astype(np.float32)), n_verts=int(verts.shape[0]),
+                tris=_b64(tris.astype(np.uint32)), n_tris=int(tris.shape[0]), lab=_b64(lab.astype(np.uint8)),
+                names={int(k): v for k, v in names.items()})
+
+
+def _source(h, at_ms, sigma_scale, label, title, t_ms, rng, n_disp=4500, voxel=0.008, disp_every=2, rt_ms=None):
+    if rt_ms is not None:
+        vm = np.concatenate([vm_full(at_ms, rt_ms, t_ms[i:i + 50]) for i in range(0, t_ms.size, 50)])
+    else:
+        vm = vm_from_at(at_ms, t_ms).astype(np.float32)        # (T, N) mV
+    sig = lf.sigma_for(h, scale=sigma_scale)
     centres, m = lf.voxel_moments(h.points, h.tets, sig, vm * 1e-3, voxel=voxel)
     disp = _surface_nodes(h.points, n_disp, rng)
     vq = np.clip((vm[::disp_every, disp] + 90.0) / 120.0 * 255, 0, 255).astype(np.uint8)
@@ -80,7 +91,7 @@ def artifact_body(html: str) -> str:
 
 def build(out: Path, quick=False, seed=0, artifact=False):
     rng = np.random.default_rng(seed)
-    sources, skins = [], {}
+    sources, skins, surfaces = [], {}, {}
     t_at = np.arange(-10, 170, 2.0)
     t_v = np.arange(-10, 200, 2.0)
     pts = ["S1"] if quick else ["S1", "S2", "S3", "S4"]
@@ -88,15 +99,16 @@ def build(out: Path, quick=False, seed=0, artifact=False):
         h = H.load_biatrial(p)
         sim = AtrialSimulator(h)
         skins[h.name] = _skin(h)
+        surfaces[h.name] = _surface_payload(*mesh_surface(h))
         ref = sim.reference()
         sources.append(dict(_source(h, ref.at_ms, ref.sigma_scale, "healthy", f"Atria {p} - healthy (reference)",
-                                    t_at, rng), skin=h.name))
+                                    t_at, rng), skin=h.name, surface=h.name))
         if p == "S1":
             for lab, title in (("slow_patch", "fibrotic slow-conduction patch"), ("ia_block", "interatrial block"),
                                ("ectopic", "ectopic focus")):
                 a = sim.sample(lab, rng)
                 sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Atria {p} - {title}", t_at, rng),
-                                    skin=h.name))
+                                    skin=h.name, surface=h.name))
         print(f"  atria {p} done", flush=True)
     vent = [("healthy", "01", ["normal", "lbbb", "rbbb", "scar"])]
     if not quick:
@@ -107,14 +119,42 @@ def build(out: Path, quick=False, seed=0, artifact=False):
         h = H.load_strocchi(coh, cid)
         sim = VentricularSimulator(h)
         skins[h.name] = _skin(h)
+        skey = f"anatomy_{coh}_{cid}"
+        if skey not in surfaces:
+            surfaces[skey] = _surface_payload(*strocchi_full_surface(h.frame))
         nice = {"normal": "normal conduction", "lbbb": "left bundle branch block", "rbbb": "right bundle branch block",
                 "scar": "LV scar"}
         for lab in labels:
             a = sim.sample(lab, rng)
             anat = "healthy anatomy" if coh == "healthy" else "heart-failure anatomy"
             sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Ventricles {cid} ({anat}) - {nice[lab]}",
-                                        t_v, rng, voxel=0.009), skin=h.name))
+                                        t_v, rng, voxel=0.009), skin=h.name, surface=skey))
         print(f"  ventricles {coh} {cid} done", flush=True)
+
+    # whole beats (P - QRS - T) on four-chamber anatomies
+    t_w = np.arange(-50, 650, 4.0)
+    whole = [("healthy", "01", ["normal", "lbbb", "av_block", "long_qt"])]
+    if not quick:
+        whole.append(("hf", "01", ["normal"]))
+    nice_w = {"normal": "normal sinus beat", "lbbb": "left bundle branch block", "av_block": "1st-degree AV block",
+              "long_qt": "long QT"}
+    for coh, cid, labels in whole:
+        try:
+            h = load_whole_heart(coh, cid)
+        except FileNotFoundError:
+            continue
+        sim = WholeHeartSimulator(h)
+        skins[h.name] = _skin(h)
+        skey = f"anatomy_{coh}_{cid}"
+        if skey not in surfaces:   # same mesh, same canonical frame as the ventricle-only loader
+            surfaces[skey] = _surface_payload(*strocchi_full_surface(h.frame))
+        anat = "healthy anatomy" if coh == "healthy" else "heart-failure anatomy"
+        for lab in labels:
+            a = sim.sample(lab, rng)
+            sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Whole heart {cid} ({anat}) - {nice_w[lab]}",
+                                        t_w, rng, voxel=0.009, disp_every=1, rt_ms=a.rt_ms),
+                                skin=h.name, surface=skey))
+        print(f"  whole heart {coh} {cid} done", flush=True)
 
     measured = []
     try:
@@ -138,8 +178,9 @@ def build(out: Path, quick=False, seed=0, artifact=False):
         except Exception as e:  # noqa: BLE001
             print(f"  Kiel {s} skipped:", e)
     presets = dict(ptb49=ptb49_layout()[0].round(2).tolist(), kiel36=kiel36_layout()[0].round(2).tolist())
-    centres = {f"{k}|{p}": default_centre_mm(k, p) for k in ("atria", "ventricles") for p in ("grid", "ptb49", "kiel36")}
-    payload = dict(sources=sources, measured=measured, skins=skins, presets=presets, centres=centres,
+    centres = {f"{k}|{p}": default_centre_mm(k, p) for k in ("atria", "ventricles", "whole")
+               for p in ("grid", "ptb49", "kiel36")}
+    payload = dict(sources=sources, measured=measured, skins=skins, surfaces=surfaces, presets=presets, centres=centres,
                    k_cal=lf.K_CAL, version="0.1")
     html = TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload))
     if artifact:

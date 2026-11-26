@@ -1,0 +1,18 @@
+# Whole beats (P - PR - QRS - ST-T) on the Strocchi four-chamber meshes: atria + ventricles with an
+# insulated AV junction, sinus node at the SVC junction, AV-node delay, ventricular repolarisation.
+name: whole_ptb49
+kind: whole
+seed: 5
+array: {preset: ptb49, standoff_mm: 45}
+placements_per_heart: 3
+placement_jitter: {centre_mm: 25, standoff_mm: 12, rotation_deg: 10, heart_rot_deg: 12}
+time: {t0_ms: -150, t1_ms: 800, dt_ms: 2}      # relative to sinus activation; the acquisition model aligns on QRS
+samples_per_heart: {normal: 30, av_block: 6, lbbb: 6, rbbb: 6, scar: 6, ia_block: 6, ectopic_atrial: 6, long_qt: 6}
+hf_conduction: [normal, lbbb]
+hf_samples_per_class: 30
+splits:
+  train: [whole_healthy:01, whole_healthy:02, whole_healthy:03, whole_healthy:04, whole_healthy:05,
+          whole_healthy:06, whole_healthy:07, whole_healthy:08, whole_healthy:09, whole_healthy:10,
+          whole_healthy:11, whole_healthy:12, whole_hf:01]
+  val: [whole_healthy:13, whole_healthy:14, whole_healthy:15, whole_healthy:16]
+  test: [whole_healthy:17, whole_healthy:18, whole_healthy:19, whole_healthy:20, whole_hf:02]
