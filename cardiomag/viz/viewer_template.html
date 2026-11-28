@@ -35,6 +35,7 @@ button.primary { background: var(--accent); color: #fff; border-color: var(--acc
 .timebar { display: flex; align-items: center; gap: 10px; flex: 1 1 360px; min-width: 260px; }
 .timebar input[type=range] { flex: 1; accent-color: var(--accent); }
 .tlabel { font-variant-numeric: tabular-nums; min-width: 78px; text-align: right; }
+[hidden] { display: none !important; }
 main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(320px, 1fr); gap: 16px; padding-block: 16px 28px; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); max-width: 1600px; margin: 0 auto; }
 .credits { grid-column: 1 / -1; }
 .credits ol { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13px; }
@@ -64,6 +65,26 @@ canvas.chart { width: 100%; display: block; }
 #loading { position: fixed; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 80%, transparent); font-size: 15px; z-index: 10; }
 .stats { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); }
 details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+
+.tabs { display: flex; gap: 2px; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; color: var(--muted); padding: 5px 8px; font-weight: 600; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+#model { max-width: 880px; margin: 0 auto; padding: 20px max(20px, env(safe-area-inset-right, 0px)) 48px max(20px, env(safe-area-inset-left, 0px)); font-size: 15px; line-height: 1.6; }
+#model h2 { font-size: 22px; letter-spacing: -.01em; margin: 8px 0 4px; }
+#model h3 { font-size: 17px; margin: 30px 0 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+#model h4 { font-size: 14px; margin: 18px 0 4px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+#model p, #model li { color: var(--ink); }
+#model .lead { color: var(--muted); font-size: 15px; margin-top: 0; }
+#model table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 8px 0 14px; display: block; overflow-x: auto; }
+#model th, #model td { border-bottom: 1px solid var(--line); padding: 6px 10px 6px 0; text-align: left; vertical-align: top; }
+#model th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+#model code { font: 13px ui-monospace, Menlo, monospace; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 4px; }
+#model .eq { overflow-x: auto; overflow-y: hidden; }
+#model .callout { background: var(--accent-soft); border-radius: 10px; padding: 10px 14px; margin: 12px 0; }
+#model ol.flow { padding-left: 22px; }
+#model nav.toc { columns: 2 240px; font-size: 14px; margin: 10px 0 4px; }
+#model nav.toc a { color: var(--accent); text-decoration: none; }
+#model nav.toc ol { margin: 0; padding-left: 20px; }
 @media (max-width: 960px) {
   main { grid-template-columns: 1fr; padding-block: 12px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   #view3d { height: 420px; }
@@ -85,10 +106,14 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     <input id="time" type="range" min="0" max="1" value="0" aria-label="Time">
     <span class="tlabel" id="tlabel">0 ms</span>
   </div>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" id="tabViewer" aria-selected="true" aria-controls="viewerPanel">Viewer</button>
+    <button role="tab" id="tabModel" aria-selected="false" aria-controls="model">Model &amp; methods</button>
+  </nav>
   <button id="theme" title="Toggle light/dark">◐</button>
 </header>
 
-<main>
+<main id="viewerPanel">
   <div class="col">
     <div class="card">
       <h2 id="title3d">Heart</h2>
@@ -148,7 +173,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     </div>
     <div class="card">
       <details><summary>About the physics</summary>
-        <p class="note">Simulated sources: activation from an anisotropic eikonal model (validated against the reference biatrial simulations, mean error ≈1 ms) with a template action potential; primary current J = −σᵢ∇Vₘ with an effective intracellular conductivity calibrated to the measured PTB P-wave (K<sub>cal</sub> = <span id="kcal"></span>). Current dipoles are lumped into 8–9 mm voxels; B at each sensor is computed here by Biot–Savart. The normal component is exact for a flat (half-space) chest; tangential components omit volume currents. Measured sources are median beats from the PTB SQUID and Kiel OPM recordings on their own layouts (time relative to the R peak).</p>
+        <p class="note">Simulated sources: activation from an anisotropic eikonal model (validated against the reference biatrial simulations, mean error ≈1 ms) with a template action potential; primary current J = −σᵢ∇Vₘ with an effective intracellular conductivity calibrated to the measured PTB P-wave (K<sub>cal</sub> = <span id="kcal"></span>). Current dipoles are lumped into 8–9 mm voxels; B at each sensor is computed here by Biot–Savart. The normal component is exact for a flat (half-space) chest; tangential components omit volume currents. Measured sources are median beats from the PTB SQUID and Kiel OPM recordings on their own layouts (time relative to the R peak). Full equations and parameters: <a href="#model" id="physLink" style="color:var(--accent)">Model &amp; methods</a>.</p>
       </details>
     </div>
   </div>
@@ -165,6 +190,184 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     <p class="note">Changes made here: meshes re-oriented into a body frame; activation re-simulated with an eikonal model (healthy and abnormal scenarios); currents and magnetic fields computed with cardiomag; recordings reduced to R-peak-aligned median beats and resampled to 2 ms. The Kiel-derived beats in this page are adapted material shared under CC BY-SA 4.0. Research visualisation only, not for clinical use.</p>
   </section>
 </main>
+
+<article id="model" role="tabpanel" aria-labelledby="tabModel" hidden>
+<h2>Model &amp; methods</h2>
+<p class="lead">What every simulated source in this viewer is, equation by equation, with the parameter values used in the code (<code>cardiomag</code>). Measured sources (PTB, Kiel) are real recordings and only go through the last steps (median beat, sensor layout).</p>
+
+<nav class="toc"><ol>
+<li><a href="#m-pipeline">Pipeline</a></li>
+<li><a href="#m-anatomy">Anatomy and body frame</a></li>
+<li><a href="#m-eikonal">Activation: anisotropic eikonal</a></li>
+<li><a href="#m-coupling">Conduction system and coupling</a></li>
+<li><a href="#m-ap">Action potential and repolarisation</a></li>
+<li><a href="#m-sigma">Conductivity and calibration</a></li>
+<li><a href="#m-current">Primary current and dipoles</a></li>
+<li><a href="#m-field">Magnetic field (Biot–Savart, lead field)</a></li>
+<li><a href="#m-sensors">Sensor arrays and placement</a></li>
+<li><a href="#m-noise">Noise and acquisition model</a></li>
+<li><a href="#m-scen">Healthy and abnormal scenarios</a></li>
+<li><a href="#m-ml">Anomaly detection (ML)</a></li>
+<li><a href="#m-measured">Measured recordings</a></li>
+<li><a href="#m-limits">Assumptions and limitations</a></li>
+</ol></nav>
+
+<h3 id="m-pipeline">1. Pipeline</h3>
+<ol class="flow">
+<li><b>Anatomy</b>: tetrahedral heart mesh with fibre directions, rotated into a body frame.</li>
+<li><b>Activation times</b> \(T(\mathbf x)\) from an anisotropic eikonal model solved as shortest paths on the mesh edges.</li>
+<li><b>Membrane voltage</b> \(V_m(\mathbf x,t)\) from a template action potential shifted by \(T\) (and by a repolarisation time for whole beats).</li>
+<li><b>Primary current</b> \(\mathbf J_p=-\boldsymbol\sigma_i\nabla V_m\), integrated per element into current dipoles.</li>
+<li><b>Magnetic field</b> at each sensor by Biot–Savart; the whole chain is linear, \(\mathbf B = W\,\mathbf V_m\).</li>
+<li><b>Sensors and acquisition</b>: array layout and placement, noise, filtering and windowing (identical for simulated and measured data in the ML datasets).</li>
+</ol>
+<p>Units: lengths in m (mm in tables), times in ms, conduction velocities in mm/ms (= m/s), \(V_m\) in mV, fields in pT.</p>
+
+<h3 id="m-anatomy">2. Anatomy and body frame</h3>
+<table>
+<tr><th>Model</th><th>Source</th><th>Contents</th></tr>
+<tr><td>Atria S1–S4</td><td>Zappon et al. 2025 (biatrial, with torso)</td><td>LA and RA as separate mesh components, fibres, regional conduction velocities, reference (DREAM) activation, sinus-node and interatrial sites</td></tr>
+<tr><td>Ventricles 01 (healthy / HF)</td><td>Rodero/Strocchi 2021, Strocchi 2020</td><td>LV + RV myocardium, fibres, universal ventricular coordinates: transmural \(\rho\in[0,1]\) (endo→epi), apico-basal \(z\in[0,1]\) (apex→base)</td></tr>
+<tr><td>Whole heart 01</td><td>same four-chamber meshes</td><td>LV, RV, LA, RA (tags 1–4); valve planes and caval inlets used as landmarks</td></tr>
+</table>
+<p><b>Body frame.</b> \(x\) = patient's left, \(y\) = superior, \(z\) = anterior (towards the chest wall, the sensor direction). Ventricular meshes are rotated by the rotation \(R\) that maps the measured long axis (base→apex) and the LV→RV direction onto canonical directions,
+\[ R\,\hat{\mathbf a}_{\text{apex}} = (0.61,\,-0.50,\,0.61),\qquad R\,\hat{\mathbf r}_{\text{RV}} \approx (-0.45,\,0.05,\,0.89), \]
+with the origin at the ventricular centroid. The biatrial models use the principal axes of their own torso mesh. In the ML datasets the heart is additionally rotated by small random angles (\(\mathcal N(0,12^\circ)\) per axis for whole beats).</p>
+<p><b>Electrical insulation (whole heart).</b> The four-chamber mesh shares nodes between atria and ventricles and between LA and RA. Each shared node is duplicated per compartment (ventricles, LA, RA), so the compartments are electrically separate and only the explicit couplings of section 4 connect them.</p>
+<p><b>Chest surface.</b> Atria: the torso surface (skin height map \(z_{\text{skin}}(x,y)\)). Ventricles / whole heart: a flat chest (half-space) 20 mm anterior to the most anterior tissue point.</p>
+
+<h3 id="m-eikonal">3. Activation: anisotropic eikonal model</h3>
+<p>Activation time \(T(\mathbf x)\) satisfies the anisotropic eikonal equation
+\[ \sqrt{\nabla T^{\top} D(\mathbf x)\,\nabla T} = 1,\qquad D = v_t^2\,I + (v_l^2 - v_t^2)\,\mathbf f\mathbf f^{\top}, \]
+where \(\mathbf f\) is the unit fibre direction and \(v_l, v_t\) are the conduction velocities along and across fibres. Boundary conditions are stimulus sites with prescribed onset times.</p>
+<h4>Graph discretisation</h4>
+<p>Every unique mesh edge \(\mathbf d = \mathbf x_j - \mathbf x_i\) (in mm) gets the anisotropic travel time of one adjacent tetrahedron (its fibre \(\mathbf f\)):
+\[ w_{ij} = \sqrt{\frac{(\mathbf d\cdot\mathbf f)^2}{(\gamma v_l)^2} + \frac{|\mathbf d|^2 - (\mathbf d\cdot\mathbf f)^2}{(\gamma v_t)^2}} . \]
+Activation times are shortest-path distances (Dijkstra) from a virtual source node \(s\) joined to every stimulus node \(k\) by an edge of weight equal to its onset \(t_k\):
+\[ T(i) = \min_{k}\Big(t_k + \min_{\text{paths }k\to i} \sum_{(a,b)\in\text{path}} w_{ab}\Big). \]
+Paths along edges zig-zag and are longer than straight lines, so graph times overestimate the continuum solution. A single factor \(\gamma = 1.08\) on the velocities corrects this. It was calibrated against the reference (DREAM) activation of the four biatrial models: mean absolute error 0.9–1.4 ms.</p>
+<p><b>Fast endocardial layer</b> (ventricles, a Purkinje surrogate): edges with both ends in the layer \(\rho \le 0.05\) conduct isotropically, \(w_{ij} = |\mathbf d| / (\gamma v_f)\), with \(v_f \sim \mathcal U(1.0, 1.5)\) mm/ms.</p>
+<p><b>Blocked tissue</b> (scar): its nodes are removed from the graph, so \(T = \infty\).</p>
+<table>
+<tr><th>Tissue</th><th>\(v_l\) (mm/ms)</th><th>\(v_t\) (mm/ms)</th></tr>
+<tr><td>Atria S1–S4</td><td colspan="2">per region from the published models (bulk, crista terminalis, pectinate muscles, Bachmann's bundle, …)</td></tr>
+<tr><td>Atria (whole heart)</td><td>1.1</td><td>0.6 (bulk incl. fast tracts)</td></tr>
+<tr><td>Ventricular myocardium</td><td>0.5</td><td>0.2</td></tr>
+<tr><td>Fast endocardial layer</td><td colspan="2">1.0–1.5, isotropic</td></tr>
+</table>
+<p>Each sample scales all velocities by a common factor \(\mathcal U(0.9, 1.1)\).</p>
+
+<h3 id="m-coupling">4. Conduction system and coupling</h3>
+<p><b>Sinus node.</b> Atria S1–S4: the published SAN sites. Whole heart: right-atrial tissue within 4 mm of the lateral RA–superior vena cava junction. Onset \(t = 0\).</p>
+<p><b>Interatrial connections.</b> Each connection \(c\) joins a set of RA nodes and a set of LA nodes with a delay \(\delta_c\). In the whole heart these are Bachmann's bundle (BB, superior septal interface, 4 ms), the fossa ovalis (FO, mid, 12 ms) and the coronary sinus (CS, inferior, 10 ms). In S1–S4 they are BB1–3, CS and PC, with delays taken from the reference activation. Delays are jittered by \(\mathcal U(0.8, 1.2)\). Both atria are solved together and re-solved with the connections as extra stimuli until the times stop changing (at most 3 iterations), so activation can cross in either direction:
+\[ t^{\text{LA}}_c = \min_{i\in \text{RA}_c} T(i) + \delta_c,\qquad t^{\text{RA}}_c = \min_{j\in \text{LA}_c} T(j) + \delta_c . \]</p>
+<p><b>AV node and His.</b> The AV node is RA tissue within 4 mm of the point on the tricuspid ring closest to the ventricular septum. Ventricular activation starts at
+\[ t_{\text{His}} = \min_{i\in\text{AVN}} T(i) + \delta_{AV},\qquad \delta_{AV}\sim\mathcal U(50, 90)\ \text{ms}. \]
+Two septal roots, mid-septal endocardial nodes (\(0.35<z<0.65\)) closest to the other ventricle, fire at \(t_{\text{His}}+\mathcal U(0,3)\) (LV) and \(t_{\text{His}}+\mathcal U(3,8)\) ms (RV). The ventricle-only models use the same roots with \(t_{\text{His}} = 0\).</p>
+
+<h3 id="m-ap">5. Action potential and repolarisation</h3>
+<p><b>Depolarisation only</b> (atria-only and ventricles-only sources, short windows):
+\[ V_m(t) = V_r + (V_p - V_r)\,\tfrac12\Big[1+\tanh\tfrac{t-T}{\tau_u}\Big]\Big(0.85 + 0.15\,e^{-\max(t-T,0)/300\,\text{ms}}\Big), \]
+with \(V_r=-85\) mV, \(V_p = 20\) mV and \(\tau_u = 1\) ms.</p>
+<p><b>Whole beats</b>, with repolarisation at \(R = T + \text{APD}\):
+\[ V_m(t) = V_r + (V_p - V_r)\; u(t)\,\big[1-r(t)\big]\,\big[1 - 0.15\,\phi(t)\big], \]
+\[ u = \tfrac12\Big[1+\tanh\tfrac{t-T}{\tau_u}\Big],\quad r = \tfrac12\Big[1+\tanh\tfrac{t-R}{\tau_r}\Big],\quad \phi = \operatorname{clip}\!\Big(\tfrac{t-T}{R-T},0,1\Big), \]
+with \(\tau_r = 30\) ms (phase-3 width) and a slow 15 % plateau decline.</p>
+<p><b>Action potential duration.</b> Ventricles:
+\[ \text{APD} = \text{APD}_0 - 20\,\rho - 40\,(z-0.5) - 0.3\,\big(T - \min T_{\text{vent}}\big)\ \ \text{ms},\qquad \text{APD}_0\sim\mathcal U(260,300). \]
+This makes the APD longer at the apex and endocardium and shorter for late activation, which gives the concordant (upright) T wave seen in measured MCG. The simulated R- and T-peak maps correlate at +0.65 to +0.70; the PTB recording gives +0.88. Atria: \(\text{APD} \sim \mathcal U(180,220)\) ms, which produces an atrial repolarisation (Ta) wave hidden in the QRS.</p>
+
+<h3 id="m-sigma">6. Conductivity and calibration</h3>
+<p>The intracellular conductivity tensor per element is
+\[ \boldsymbol\sigma_i = \sigma_t\,I + (\sigma_l - \sigma_t)\,\mathbf f\mathbf f^{\top},\qquad \sigma_l = K_{\text{cal}}\,\kappa_{\text{reg}}\cdot 0.174\ \text{S/m},\qquad \sigma_t = \sigma_l\Big(\frac{v_t}{v_l}\Big)^{2}, \]
+using \(v\propto\sqrt{\sigma}\) for the anisotropy ratio. 0.174 S/m is the standard (openCARP) longitudinal intracellular conductivity. Two effective factors set the absolute amplitudes:</p>
+<table>
+<tr><th>Factor</th><th>Value</th><th>How it was set</th></tr>
+<tr><td>\(K_{\text{cal}}\)</td><td>0.33</td><td>least-squares fit of the simulated to the measured PTB P-wave amplitude over the four biatrial patients (all regions, uniform)</td></tr>
+<tr><td>\(\kappa_{\text{reg}}\) = \(K_{\text{vent}}\) in LV/RV</td><td>5.9</td><td>matches the model-free QRS/P amplitude ratio of the measured recordings (median 15.6 over PTB and 7 Kiel subjects); with it the PTB-layout QRS peak is ≈47 pT against 48 pT measured</td></tr>
+</table>
+<p>\(K_{\text{vent}}\) compensates for the eikonal ventricles activating too synchronously (opposite walls cancel). It is an effective amplitude factor, not a physiological conductivity. In scar, \(\boldsymbol\sigma_i = 0\): the tissue neither conducts nor generates current.</p>
+
+<h3 id="m-current">7. Primary current and current dipoles</h3>
+<p>\(V_m\) is linear inside each tetrahedron \(e\) (nodal values \(V_k\), shape-function gradients \(\mathbf g_{ek}\)), so the gradient and the primary current are constant per element:
+\[ \nabla V_m\big|_e = \sum_{k=1}^{4} \mathbf g_{ek} V_k,\qquad \mathbf J_e = -\boldsymbol\sigma_{i,e}\nabla V_m\big|_e . \]
+Integrated over the element volume \(|e|\), this gives a current dipole at the centroid \(\mathbf c_e\) that is linear in the nodal voltages:
+\[ \mathbf m_e = |e|\,\mathbf J_e = \sum_{k} \mathbf a_{ek} V_k,\qquad \mathbf a_{ek} = -|e|\,\boldsymbol\sigma_{i,e}\,\mathbf g_{ek} . \]
+The total heart dipole, plotted under the 3D view, is \(\mathbf P(t) = \sum_e \mathbf m_e(t)\).</p>
+<p><b>Viewer compression.</b> To keep this page small, element dipoles are summed into 8–9 mm voxels (moments \(\mathbf M_v = \sum_{e\in v}\mathbf m_e\) at the volume-weighted centroid) and stored as 16-bit integers. The arrows in the 3D view are the largest voxel moments.</p>
+
+<h3 id="m-field">8. Magnetic field: Biot–Savart and lead field</h3>
+<p>The field of the primary dipoles at sensor position \(\mathbf r_s\), measured along the unit direction \(\mathbf n_s\), is
+\[ B_s = \frac{\mu_0}{4\pi}\sum_e \frac{(\mathbf m_e \times \mathbf R_{se})\cdot\mathbf n_s}{|\mathbf R_{se}|^3} = \sum_e \mathbf m_e\cdot\mathbf L_{se},\qquad \mathbf R_{se} = \mathbf r_s - \mathbf c_e,\quad \mathbf L_{se} = \frac{\mu_0}{4\pi}\,\frac{\mathbf R_{se}\times\mathbf n_s}{|\mathbf R_{se}|^{3}} . \]
+Combining sections 7 and 8, the whole chain is one linear map from nodal voltages to sensor readings, the <i>lead field</i> \(W\):
+\[ \mathbf B(t) = W\,\mathbf V_m(t),\qquad W_{sk} = \sum_{e\ni k} \mathbf L_{se}\cdot\mathbf a_{ek}. \]
+\(W\) is computed once per heart and array placement. Each sample (activation map) then only needs \(V_m\) and a matrix product, and full beats are evaluated in time chunks. For a scar, the contribution of the scar elements is subtracted from \(W\).</p>
+<div class="callout"><b>Volume currents.</b> The return (volume) currents \(\mathbf J_v = -\sigma\nabla\phi\) also produce a field. For a conductor bounded by a plane (half-space) they contribute nothing to the field component normal to the plane, so \(B_z\) from the primary current alone is exact there. This is why the default sensor component is the normal (anterior) one. The tangential components offered in the viewer omit the volume-current term and are approximate. The real torso is not a half-space; this is a modelling assumption.</div>
+<p>In the viewer, the field is recomputed in your browser from the voxel dipoles for whatever array you place, with the same formula; \(\mathbf n_s\) is \(\hat z\) (normal) or \(\hat x\) / \(\hat y\) (tangential).</p>
+
+<h3 id="m-sensors">9. Sensor arrays and placement</h3>
+<table>
+<tr><th>Layout</th><th>Sensors</th><th>Geometry</th></tr>
+<tr><td>grid</td><td>\(n_x\times n_y\)</td><td>regular grid, chosen spacing</td></tr>
+<tr><td>ptb49</td><td>49</td><td>PTB SQUID system layout</td></tr>
+<tr><td>kiel36</td><td>36</td><td>6 × 6, 30 mm pitch (Kiel OPM positions)</td></tr>
+</table>
+<p>An array with centre \((c_x,c_y)\) (relative to the heart centroid), in-plane rotation \(\theta\) and standoff \(h\) is placed on a plane parallel to the chest:
+\[ \mathbf r_s = \big(R_\theta\,\mathbf p_s + \mathbf c,\; \max_{s'} z_{\text{skin}}(x_{s'},y_{s'}) + h\big), \]
+i.e. \(h\) above the highest skin point under the array. Default centres for PTB and Kiel were found by <b>registration</b>: a scan over centre positions and axis flips that maximises the summed correlation of the simulated and measured R-, T- and P-peak field maps. Kiel was registered against all 7 subjects: unflipped axes, centre ≈(40, 40–50) mm, mean correlations R 0.69, T 0.45, P 0.32. The remaining mismatch comes from differences between subjects.</p>
+
+<h3 id="m-noise">10. Noise and acquisition model</h3>
+<p><b>Viewer.</b> White Gaussian noise of spectral density \(n\) (fT/√Hz, slider) at sampling interval \(\Delta t\): \(\sigma_B = n\sqrt{f_s/2}\), with \(f_s = 1/\Delta t\).</p>
+<p><b>ML datasets.</b> Noise is added on the fly, scaled to the signal. A signal-to-noise ratio \(\text{SNR}\sim\log\mathcal U(\text{lo},\text{hi})\) gives \(\sigma = \text{RMS}(x)/\text{SNR}\). The noise is 70 % white and 30 % 1/f (random-walk) power. SNR ranges come from the measured data: P wave 10–42 (atrial sets use [8, 50]), QRS 115–580 (ventricular/whole sets use [80, 600]). Then the same chain is applied to simulated and measured windows:</p>
+<ol class="flow">
+<li>zero-phase 4th-order Butterworth low-pass at 80 Hz;</li>
+<li>onset detection: the RMS over sensors, smoothed over 8 ms; walk back from its peak to the first sample below base + 10 % of the rise;</li>
+<li>crop a fixed window relative to the onset, then normalise each sample by its RMS (shape only, so it is robust to amplitude calibration and distance).</li>
+</ol>
+<p>Training augmentations: amplitude jitter ±10 %, onset jitter ±3 ms, 5 % channel dropout.</p>
+
+<h3 id="m-scen">11. Healthy and abnormal scenarios</h3>
+<table>
+<tr><th>Model</th><th>Class</th><th>Implementation</th></tr>
+<tr><td rowspan="4">Atria</td><td>healthy</td><td>sinus-node activation, velocity and delay jitter</td></tr>
+<tr><td>slow_patch</td><td>fibrotic patch of radius 10–20 mm in the LA or RA with \(v_l, v_t \times 0.2\text{–}0.4\)</td></tr>
+<tr><td>ia_block</td><td>Bachmann's bundle connections removed (LA reached via CS / posterior connections only)</td></tr>
+<tr><td>ectopic</td><td>a 3 mm focus in the LA (60 %) or the RA ≥ 25 mm from the SAN replaces the sinus node</td></tr>
+<tr><td rowspan="4">Ventricles</td><td>normal</td><td>both septal roots and both fast layers</td></tr>
+<tr><td>lbbb</td><td>LV root and LV fast layer removed (activation from the RV)</td></tr>
+<tr><td>rbbb</td><td>RV root and RV fast layer removed</td></tr>
+<tr><td>scar</td><td>LV sphere of radius 15–25 mm (\(0.2<z<0.85\)): blocked and \(\boldsymbol\sigma_i=0\)</td></tr>
+<tr><td rowspan="8">Whole heart</td><td>normal</td><td>sinus beat, \(\delta_{AV}\sim\mathcal U(50,90)\) ms</td></tr>
+<tr><td>av_block</td><td>1st-degree AV block, \(\delta_{AV}\sim\mathcal U(160,240)\) ms</td></tr>
+<tr><td>lbbb / rbbb / scar</td><td>as for the ventricles</td></tr>
+<tr><td>ia_block</td><td>BB connection removed</td></tr>
+<tr><td>ectopic_atrial</td><td>3 mm atrial focus instead of the SAN</td></tr>
+<tr><td>long_qt</td><td>\(\text{APD}_0\) increased by 70–120 ms</td></tr>
+<tr><td colspan="2">Heart-failure anatomies are simulated with normal or LBBB conduction and labelled anomalous (structural disease).</td></tr>
+</table>
+
+<h3 id="m-ml">12. Anomaly detection (ML)</h3>
+<p>Datasets: for each heart, 3–4 array placements with random jitter (whole-beat sets: centre \(\mathcal N(0,25)\) mm, standoff \(+|\mathcal N(0,12)|\) mm, array rotation \(\mathcal N(0,10^\circ)\), heart rotation \(\mathcal N(0,12^\circ)\) per axis). Each placement has its own lead field \(W\), and many activation samples are drawn per class. Splits are by heart, so test hearts are never seen in training.</p>
+<ul>
+<li><b>Classifiers</b> (1D CNN, ResNet-1D; input = sensors × time): anomaly score \(s = 1 - P(\text{healthy})\).</li>
+<li><b>Autoencoder</b> (convolutional, 32-d dense bottleneck), trained on healthy samples only: \(s = \lVert x - \hat x\rVert^2\).</li>
+<li><b>Threshold</b>: the 95th percentile of healthy validation scores (5 % false positives on simulated healthy). Metrics: AUROC, balanced accuracy, per-class detection rate, and the false-positive rate on the measured healthy recordings (sim-to-real check).</li>
+</ul>
+
+<h3 id="m-measured">13. Measured recordings</h3>
+<p><b>PTB</b>: 49-channel SQUID system, one healthy volunteer. <b>Kiel</b>: optically pumped magnetometers (OPMs), 7 healthy subjects, with sensor positions from the recording headers. Kiel channels measure \(-B_y\) in the device frame, mapped to \(+B\) anterior. Processing: greedy multichannel R-peak detection, median beat over all beats (−450 to +550 ms around R, baseline from the TP segment), P- and QRS-onset detection, resampled to 2 ms. Signs and axes were inferred from QRS map orientation, because they are not documented.</p>
+
+<h3 id="m-limits">14. Assumptions and limitations</h3>
+<ul>
+<li>Activation is an eikonal model, not reaction–diffusion: no wavefront curvature, source–sink or restitution effects, and no re-entry.</li>
+<li>The action potential is a template (no ionic model). Repolarisation gradients are imposed, not emergent.</li>
+<li>The volume conductor is a half-space: only the normal component is exact, and torso and lung inhomogeneities are ignored.</li>
+<li>The Purkinje system is a thin fast endocardial layer with two septal roots. Ventricular amplitudes rely on the effective factor \(K_{\text{vent}}\).</li>
+<li>Few anatomies: 4 atria and up to 20 + 24 four-chamber meshes in the data, 1 whole heart in this viewer. Real between-subject variability (for example T-wave and P-wave polarity) is wider than in the simulations.</li>
+<li>Research visualisation only; not for clinical use.</li>
+</ul>
+<p class="note">Source code: <code>cardiomag/sim/eikonal.py</code>, <code>sim/scenarios.py</code>, <code>sim/whole_heart.py</code>, <code>physics/leadfield.py</code>, <code>physics/sensors.py</code>, <code>data/acquisition.py</code> in <a href="https://github.com/npiro/cardiomag" target="_blank" rel="noopener">github.com/npiro/cardiomag</a>. Equations are typeset with MathJax (loaded when this tab opens; needs a network connection).</p>
+</article>
 
 <script>
 const DATA = /*__DATA__*/null;
@@ -653,6 +856,32 @@ function tick(ts) {
   if (!ts || ts - last > 45) { last = ts || 0; st.t = (st.t + 1) % st.src.T; $("time").value = st.t; drawAll(); }
   requestAnimationFrame(tick);
 }
+
+// ---------------------------------------------------------------- tabs + lazy MathJax
+let mathLoaded = false;
+function loadMath() {
+  if (mathLoaded) return; mathLoaded = true;
+  window.MathJax = { tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+    svg: { fontCache: "global" }, startup: { elements: [document.getElementById("model")] } };
+  const sc = document.createElement("script");
+  sc.src = "https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg.js"; sc.async = true;
+  document.head.appendChild(sc);
+}
+function showTab(which) {
+  const model = which === "model";
+  $("tabViewer").setAttribute("aria-selected", String(!model));
+  $("tabModel").setAttribute("aria-selected", String(model));
+  $("viewerPanel").hidden = model; $("model").hidden = !model;
+  for (const el of document.querySelectorAll("header select, header .timebar")) el.style.display = model ? "none" : "";
+  try { history.replaceState(null, "", model ? "#model" : "#"); } catch (e) {}
+  window.scrollTo(0, 0);
+  if (model) loadMath(); else requestAnimationFrame(drawAll);
+}
+$("tabViewer").onclick = () => showTab("viewer");
+$("tabModel").onclick = () => showTab("model");
+$("physLink").onclick = (e) => { e.preventDefault(); showTab("model"); };
+if (location.hash.startsWith("#model") || location.hash.startsWith("#m-")) showTab("model");
+
 init();
 </script>
 </body>
