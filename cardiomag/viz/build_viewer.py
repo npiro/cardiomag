@@ -37,9 +37,37 @@ def _b64(arr: np.ndarray) -> str:
 
 
 def _surface_nodes(points, n, rng):
-    """Subsample nodes, biased to the outer surface (furthest from the centroid along random rays)."""
+    """Random subsample of mesh nodes (whole volume). Only used for sources without a surface mesh."""
     idx = rng.choice(points.shape[0], size=min(n, points.shape[0]), replace=False)
     return idx
+
+
+def _vertex_nodes(h, surf, max_mm=6.0):
+    """For each surface vertex, the nearest mesh node of the same chamber (-1: none, e.g. vessels, or a
+    chamber this model does not simulate). Matching by chamber keeps e.g. an atrial vertex at the AV
+    junction from picking up the coincident ventricular node copy."""
+    from scipy.spatial import cKDTree
+    verts, tris, lab, names = surf
+    nv = verts.shape[0]
+    # vertex label = most frequent label of its faces
+    cnt = np.zeros((nv, int(lab.max()) + 1), np.int32)
+    np.add.at(cnt, (tris.ravel(), np.repeat(lab, 3)), 1)
+    vlab = cnt.argmax(1)
+    node_reg = np.full(h.points.shape[0], -1)
+    node_reg[h.tets.ravel()] = np.repeat(h.region, 4)
+    rid = {v: k for k, v in h.region_names.items()}
+    out = np.full(nv, -1, np.int64)
+    for L, name in names.items():
+        sel = np.flatnonzero(vlab == L)
+        if not sel.size or name not in rid:
+            continue
+        cand = np.flatnonzero(node_reg == rid[name])
+        if not cand.size:
+            continue
+        d, j = cKDTree(h.points[cand]).query(verts[sel])
+        ok = d * 1e3 <= max_mm
+        out[sel[ok]] = cand[j[ok]]
+    return out
 
 
 def _surface_payload(verts, tris, lab, names):
@@ -48,13 +76,21 @@ def _surface_payload(verts, tris, lab, names):
                 names={int(k): v for k, v in names.items()})
 
 
-def _source(h, at_ms, sigma_scale, label, title, t_ms, rng, n_disp=4500, voxel=0.008, disp_every=2, rt_ms=None):
+def _source(h, at_ms, sigma_scale, label, title, t_ms, rng, n_disp=4500, voxel=0.008, disp_every=2, rt_ms=None,
+            surf=None):
     if rt_ms is not None:
         vm = np.concatenate([vm_full(at_ms, rt_ms, t_ms[i:i + 50]) for i in range(0, t_ms.size, 50)])
     else:
         vm = vm_from_at(at_ms, t_ms).astype(np.float32)        # (T, N) mV
     sig = lf.sigma_for(h, scale=sigma_scale)
     centres, m = lf.voxel_moments(h.points, h.tets, sig, vm * 1e-3, voxel=voxel)
+    extra = {}
+    if surf is not None:      # Vm on the anatomy surface vertices (255 = no data); no volume dots
+        vn = _vertex_nodes(h, surf)
+        sv = np.clip((vm[::disp_every][:, np.maximum(vn, 0)] + 90.0) / 120.0 * 254, 0, 254).astype(np.uint8)
+        sv[:, vn < 0] = 255
+        extra = dict(sv=_b64(sv), n_sv=int(vn.size))
+        n_disp = 0
     disp = _surface_nodes(h.points, n_disp, rng)
     vq = np.clip((vm[::disp_every, disp] + 90.0) / 120.0 * 255, 0, 255).astype(np.uint8)
     ms = float(np.abs(m).max()) or 1.0
@@ -64,7 +100,7 @@ def _source(h, at_ms, sigma_scale, label, title, t_ms, rng, n_disp=4500, voxel=0
                 t_ms=t_ms.tolist(), disp_every=disp_every,
                 pts=_b64((h.points[disp] * 1e3).astype(np.float32)), n_pts=int(disp.size),
                 vm=_b64(vq), vox=_b64((centres * 1e3).astype(np.float32)), n_vox=int(centres.shape[0]),
-                m=_b64(mq), m_scale=ms, dipole_uAm=(np.linalg.norm(P, axis=1) * 1e6).round(4).tolist())
+                m=_b64(mq), m_scale=ms, dipole_uAm=(np.linalg.norm(P, axis=1) * 1e6).round(4).tolist(), **extra)
 
 
 def _skin(h):
@@ -99,15 +135,16 @@ def build(out: Path, quick=False, seed=0, artifact=False):
         h = H.load_biatrial(p)
         sim = AtrialSimulator(h)
         skins[h.name] = _skin(h)
-        surfaces[h.name] = _surface_payload(*mesh_surface(h))
+        surf_raw = mesh_surface(h)
+        surfaces[h.name] = _surface_payload(*surf_raw)
         ref = sim.reference()
         sources.append(dict(_source(h, ref.at_ms, ref.sigma_scale, "healthy", f"Atria {p} - healthy (reference)",
-                                    t_at, rng), skin=h.name, surface=h.name))
+                                    t_at, rng, surf=surf_raw), skin=h.name, surface=h.name))
         if p == "S1":
             for lab, title in (("slow_patch", "fibrotic slow-conduction patch"), ("ia_block", "interatrial block"),
                                ("ectopic", "ectopic focus")):
                 a = sim.sample(lab, rng)
-                sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Atria {p} - {title}", t_at, rng),
+                sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Atria {p} - {title}", t_at, rng, surf=surf_raw),
                                     skin=h.name, surface=h.name))
         print(f"  atria {p} done", flush=True)
     vent = [("healthy", "01", ["normal", "lbbb", "rbbb", "scar"])]
@@ -120,15 +157,16 @@ def build(out: Path, quick=False, seed=0, artifact=False):
         sim = VentricularSimulator(h)
         skins[h.name] = _skin(h)
         skey = f"anatomy_{coh}_{cid}"
+        surf_raw = strocchi_full_surface(h.frame)
         if skey not in surfaces:
-            surfaces[skey] = _surface_payload(*strocchi_full_surface(h.frame))
+            surfaces[skey] = _surface_payload(*surf_raw)
         nice = {"normal": "normal conduction", "lbbb": "left bundle branch block", "rbbb": "right bundle branch block",
                 "scar": "LV scar"}
         for lab in labels:
             a = sim.sample(lab, rng)
             anat = "healthy anatomy" if coh == "healthy" else "heart-failure anatomy"
             sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Ventricles {cid} ({anat}) - {nice[lab]}",
-                                        t_v, rng, voxel=0.009), skin=h.name, surface=skey))
+                                        t_v, rng, voxel=0.009, surf=surf_raw), skin=h.name, surface=skey))
         print(f"  ventricles {coh} {cid} done", flush=True)
 
     # whole beats (P - QRS - T) on four-chamber anatomies
@@ -146,13 +184,14 @@ def build(out: Path, quick=False, seed=0, artifact=False):
         sim = WholeHeartSimulator(h)
         skins[h.name] = _skin(h)
         skey = f"anatomy_{coh}_{cid}"
+        surf_raw = strocchi_full_surface(h.frame)
         if skey not in surfaces:   # same mesh, same canonical frame as the ventricle-only loader
-            surfaces[skey] = _surface_payload(*strocchi_full_surface(h.frame))
+            surfaces[skey] = _surface_payload(*surf_raw)
         anat = "healthy anatomy" if coh == "healthy" else "heart-failure anatomy"
         for lab in labels:
             a = sim.sample(lab, rng)
             sources.append(dict(_source(h, a.at_ms, a.sigma_scale, lab, f"Whole heart {cid} ({anat}) - {nice_w[lab]}",
-                                        t_w, rng, voxel=0.009, disp_every=1, rt_ms=a.rt_ms),
+                                        t_w, rng, voxel=0.009, disp_every=1, rt_ms=a.rt_ms, surf=surf_raw),
                                 skin=h.name, surface=skey))
         print(f"  whole heart {coh} {cid} done", flush=True)
 

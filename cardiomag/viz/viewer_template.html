@@ -104,7 +104,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
       </div>
       <div class="legend"><span>Vm</span><span class="bar" id="vmbar"></span><span>−90 → +30 mV</span>
         <span style="margin-left:14px">arrows: largest current dipoles (voxel sums)</span>
-        <span style="margin-left:14px">surface: <b style="color:rgb(196,92,84)">LV</b> <b style="color:rgb(92,128,196)">RV</b> <b style="color:rgb(214,160,80)">LA</b> <b style="color:rgb(120,170,120)">RA</b> <b style="color:rgb(150,160,190)">vessels</b></span></div>
+        <span style="margin-left:14px">surface tint where no Vm: <b style="color:rgb(196,92,84)">LV</b> <b style="color:rgb(92,128,196)">RV</b> <b style="color:rgb(214,160,80)">LA</b> <b style="color:rgb(120,170,120)">RA</b> <b style="color:rgb(150,160,190)">vessels</b></span></div>
     </div>
     <div class="card">
       <h2>Current dipole <span class="stats" id="dipstat"></span></h2>
@@ -202,9 +202,10 @@ async function loadSource(key) {
     if (skin.type === "map") grid = await decode(skin.grid, Float32Array);
     let surf = null;
     if (s.surface && DATA.surfaces && DATA.surfaces[s.surface]) surf = await loadSurface(s.surface);
+    const sv = s.sv ? await decode(s.sv, Uint8Array) : null;   // Vm on surface vertices (T x n_sv)
     const V = surf ? surf.v : pts;
     let ext = 0; for (let i = 0; i < V.length; i++) ext = Math.max(ext, Math.abs(V[i]));
-    out = { kind: "sim", s, pts, vm, vox, m, skin, grid, surf, T: s.t_ms.length, extent: 2 * ext };
+    out = { kind: "sim", s, pts, vm, vox, m, skin, grid, surf, sv, T: s.t_ms.length, extent: 2 * ext };
   } else {
     const s = DATA.measured[+key.slice(5)];
     const beat = await decode(s.beat, Float32Array);
@@ -324,15 +325,16 @@ function fitCanvas(c) {
   }
   return dpr;
 }
-function vmColor(q) { // q 0..255 -> cool rest to warm active
+function vmRGB(q) { // q 0..255 -> cool rest to warm active, [r,g,b]
   const t = q / 255;
   const stops = [[0, [64, 92, 150]], [0.45, [120, 150, 190]], [0.62, [235, 190, 120]], [0.8, [232, 120, 50]], [1, [190, 40, 30]]];
   for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) {
     const [t0, c0] = stops[i - 1], [t1, c1] = stops[i], f = (t - t0) / (t1 - t0);
-    return `rgb(${c0.map((c, k) => Math.round(c + f * (c1[k] - c))).join(",")})`;
+    return c0.map((c, k) => Math.round(c + f * (c1[k] - c)));
   }
-  return "rgb(190,40,30)";
+  return [190, 40, 30];
 }
+function vmColor(q) { return `rgb(${vmRGB(q).join(",")})`; }
 function divColor(v) { // -1..1
   const pos = [194, 65, 12], neg = [37, 99, 235], mid = st.dark ? [40, 42, 46] : [246, 245, 242];
   const c = v >= 0 ? pos : neg, f = Math.min(1, Math.abs(v));
@@ -350,11 +352,17 @@ function draw3d() {
   ctx.clearRect(0, 0, W, H);
   const scale = Math.min(W, H) * 0.78 / (src.extent || 330) * st.zoom;   // fit the heart, then user zoom
   const surfOn = src.surf && $("tSurf").checked;
-  if (surfOn) drawSurface(src.surf, W, H, scale);
+  const svOn = surfOn && src.sv && $("tVm").checked;
+  let svf = null;
+  if (svOn) {
+    const n = src.s.n_sv, f = Math.min(Math.floor(st.t / src.s.disp_every), src.sv.length / n - 1);
+    svf = src.sv.subarray(f * n, (f + 1) * n);
+  }
+  if (surfOn) drawSurface(src.surf, W, H, scale, svf);
   const items = [];
   if (src.kind === "sim") {
     const n = src.s.n_pts, f = Math.min(Math.floor(st.t / src.s.disp_every), src.vm.length / n - 1);
-    if ($("tVm").checked) for (let i = 0; i < n; i++) {
+    if ($("tVm").checked && !svOn) for (let i = 0; i < n; i++) {
       const p = project([src.pts[3 * i], src.pts[3 * i + 1], src.pts[3 * i + 2]], W, H, scale);
       items.push([p[2], 0, p, src.vm[f * n + i]]);
     }
@@ -415,7 +423,7 @@ function draw3d() {
   }
 }
 
-function drawSurface(S, W, H, scale) {
+function drawSurface(S, W, H, scale, svf) {  // svf: Vm per vertex (0..254, 255 = no data) or null
   const n = S.v.length / 3, P = new Float32Array(n * 3);
   for (let i = 0; i < n; i++) { const p = project([S.v[3 * i], S.v[3 * i + 1], S.v[3 * i + 2]], W, H, scale); P[3 * i] = p[0]; P[3 * i + 1] = p[1]; P[3 * i + 2] = p[2]; }
   const order = new Array(S.nf);
@@ -435,9 +443,14 @@ function drawSurface(S, W, H, scale) {
   for (const k of order) {
     if (shade[k] < 0) continue;  // back faces culled
     const a = S.f[3 * k], b = S.f[3 * k + 1], c = S.f[3 * k + 2];
-    const name = S.names[S.l[k]] || "";
-    const col = CHAMBER[name] || [150, 150, 150], sh = shade[k];
-    ctx.fillStyle = `rgba(${Math.round(col[0] * sh)},${Math.round(col[1] * sh)},${Math.round(col[2] * sh)},${base})`;
+    const name = S.names[S.l[k]] || "", sh = shade[k];
+    let col = CHAMBER[name] || [150, 150, 150], alpha = base;
+    if (svf) {
+      let q = 0, nq = 0;
+      for (const v of [a, b, c]) if (svf[v] !== 255) { q += svf[v]; nq++; }
+      if (nq) { col = vmRGB(q / nq * 255 / 254); alpha = 0.92; }
+    }
+    ctx.fillStyle = `rgba(${Math.round(col[0] * sh)},${Math.round(col[1] * sh)},${Math.round(col[2] * sh)},${alpha})`;
     ctx.beginPath(); ctx.moveTo(P[3 * a], P[3 * a + 1]); ctx.lineTo(P[3 * b], P[3 * b + 1]); ctx.lineTo(P[3 * c], P[3 * c + 1]); ctx.closePath(); ctx.fill();
   }
 }
