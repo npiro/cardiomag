@@ -1,8 +1,8 @@
-"""Promotional mock-up video: heart current flow, magnetic field on a sensor array, and the current
+"""MatterDecoder promotional mock-up video (made with CardioMag): heart current flow, magnetic field on a sensor array, and the current
 reconstructed from the array (minimum-norm inverse), for a healthy beat and a left bundle branch block.
 
     python scripts/promo_video.py compute      # simulate + forward + inverse -> .cache/promo.npz
-    python scripts/promo_video.py render       # frames + ffmpeg -> ../promo/cardiomag_promo.mp4
+    python scripts/promo_video.py render       # frames + ffmpeg -> ../promo/matterdecoder_promo.mp4
 
 All signals are simulated (whole-heart Strocchi mesh 01). The detector badge is illustrative.
 """
@@ -17,7 +17,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 CACHE = ROOT / ".cache" / "promo.npz"
-OUT = ROOT.parent / "promo" / "cardiomag_promo.mp4"
+OUT = ROOT.parent / "promo" / "matterdecoder_promo.mp4"
 MU0_4PI = 1e-7
 CASES = [("normal", "Healthy heart"), ("lbbb", "Left bundle branch block")]
 
@@ -155,16 +155,17 @@ def render(fps=30):
 
     only = [int(x) for x in os.environ.get("PROMO_FRAMES", "").split(",") if x]
     if not only:
-      title_card(1, [(0.56, "CardioMag", 76, FG, "bold"),
-                     (0.45, "Seeing the heart's electrical currents through their magnetic field", 26, DIM, "normal")],
+      title_card(1, [(0.57, "MatterDecoder", 76, FG, "bold"),
+                     (0.46, "Seeing the heart's electrical currents through their magnetic field", 26, DIM, "normal"),
+                     (0.36, "powered by CardioMag", 18, ACC["normal"], "normal")],
                int(2.5 * fps))
 
     az0 = np.radians(-20)
     for i in (only or range(T)):
         az = az0 + np.radians(35) * np.sin(2 * np.pi * i / T)
         fig = plt.figure(figsize=(19.2, 10.8), facecolor=BG)
-        fig.text(0.035, 0.945, "CardioMag", fontsize=30, weight="bold", color=FG)
-        fig.text(0.175, 0.948, "simulated whole-heart beat  ·  64-sensor magnetometer array", fontsize=16, color=DIM)
+        fig.text(0.035, 0.945, "MatterDecoder", fontsize=30, weight="bold", color=FG)
+        fig.text(0.235, 0.948, "CardioMag  ·  simulated whole-heart beat  ·  64-sensor magnetometer array", fontsize=16, color=DIM)
         fig.text(0.965, 0.948, f"t = {t[i]:5.0f} ms", fontsize=22, color=FG, ha="right", family="DejaVu Sans Mono")
         heads = ["Cardiac current flow", "Magnetic field at the sensor array", "Current reconstructed from the array"]
         for j, hd in enumerate(heads):
@@ -236,7 +237,8 @@ def render(fps=30):
     if only:
         print("preview frames in", tmp); return
     title_card(1, [(0.58, "Contactless · radiation-free · millisecond resolution", 30, FG, "bold"),
-                   (0.47, "CardioMag", 60, ACC["normal"], "bold")], int(3 * fps))
+                   (0.47, "MatterDecoder", 60, ACC["normal"], "bold"),
+                   (0.39, "CardioMag software", 18, DIM, "normal")], int(3 * fps))
     OUT.parent.mkdir(exist_ok=True)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(fps), "-i", str(tmp / "f%05d.png"),
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-movflags", "+faststart", str(OUT)],
